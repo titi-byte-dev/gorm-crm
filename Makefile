@@ -1,4 +1,4 @@
-.PHONY: run build test lint clean tidy help
+.PHONY: run build test lint clean tidy help setup docker/build docker/up docker/down docker/logs docker/ps
 
 # Variáveis
 BINARY=bin/gorm-crm
@@ -47,6 +47,24 @@ db/down: ## Para o PostgreSQL
 
 db/logs: ## Mostra os logs do PostgreSQL
 	docker-compose logs -f postgres
+
+docker/build: ## Constrói a imagem Docker da app
+	docker build -t gorm-crm:latest .
+	@echo "✅ Imagem gorm-crm:latest construída"
+	@docker images gorm-crm --format "Tamanho: {{.Size}}"
+
+docker/up: ## Inicia toda a stack (app + postgres) com Docker
+	docker-compose up -d
+	@echo "✅ Stack a correr. API: http://localhost:8080"
+
+docker/down: ## Para toda a stack
+	docker-compose down
+
+docker/logs: ## Mostra logs da app em tempo real
+	docker-compose logs -f api
+
+docker/ps: ## Mostra o estado dos containers
+	docker-compose ps
 
 clean: ## Remove binários e ficheiros temporários
 	@rm -rf bin/ coverage.out coverage.html

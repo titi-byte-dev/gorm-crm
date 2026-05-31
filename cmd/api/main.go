@@ -81,7 +81,26 @@ func main() {
 
 func registerRoutes(app *fiber.App, db *gorm.DB, bus *events.Bus) {
 	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok", "service": "gorm-crm", "version": "0.7.0"})
+		// Verifica a ligação ao DB — healthcheck real, não só "processo a correr"
+		sqlDB, err := db.DB()
+		dbStatus := "ok"
+		if err != nil || sqlDB.Ping() != nil {
+			dbStatus = "degraded"
+		}
+		status := "ok"
+		httpStatus := fiber.StatusOK
+		if dbStatus != "ok" {
+			status = "degraded"
+			httpStatus = fiber.StatusServiceUnavailable
+		}
+		return c.Status(httpStatus).JSON(fiber.Map{
+			"status":  status,
+			"service": "gorm-crm",
+			"version": "0.8.0",
+			"checks": fiber.Map{
+				"database": dbStatus,
+			},
+		})
 	})
 
 	v1 := app.Group("/api/v1")

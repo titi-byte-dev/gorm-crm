@@ -4,17 +4,24 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 )
 
 type Service struct {
-	repo Repository
-	bus  *events.Bus
+	repo  Repository
+	bus   *events.Bus
+	chain Chain
 }
 
-func NewService(repo Repository, bus *events.Bus) *Service {
-	return &Service{repo: repo, bus: bus}
+// NewService aceita regras de validação via variadic.
+// Sem argumentos → DefaultChain (UniqueEmail + EmailDomain).
+// Com argumentos → chain personalizada.
+func NewService(repo Repository, bus *events.Bus, rules ...Rule) *Service {
+	chain := DefaultChain()
+	if len(rules) > 0 {
+		chain = Chain(rules)
+	}
+	return &Service{repo: repo, bus: bus, chain: chain}
 }
 
 type CreateContactDTO struct {
@@ -33,10 +40,8 @@ type UpdateContactDTO struct {
 }
 
 func (s *Service) Create(ownerID uuid.UUID, dto CreateContactDTO) (*Contact, error) {
-	// Regra de negócio: email único por owner
-	existing, err := s.repo.FindByEmail(dto.Email)
-	if err == nil && existing != nil {
-		return nil, fmt.Errorf("email already exists: %w", sharederrors.ErrConflict)
+	if err := s.chain.Validate(s.repo, dto); err != nil {
+		return nil, err
 	}
 
 	contact := &Contact{

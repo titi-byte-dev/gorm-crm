@@ -8,8 +8,6 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 )
 
-// Service regista handlers no Event Bus e persiste os logs no MongoDB.
-// É o ponto de ligação entre o sistema de eventos (M02) e o MongoDB (M09).
 type Service struct {
 	repo   Repository
 	logger *slog.Logger
@@ -44,8 +42,8 @@ func (s *Service) RegisterHandlers(bus *events.Bus) {
 	}
 }
 
-// handleEvent é chamado pelo Event Bus para cada evento recebido.
-// Corre na goroutine do worker do bus — não bloqueia o handler HTTP.
+// handleEvent corre na goroutine do bus — o handler HTTP já respondeu ao utilizador.
+// Falha silenciosa intencional: logs são "best effort", não críticos para o negócio.
 func (s *Service) handleEvent(ctx context.Context, event events.Event) {
 	log := &Log{
 		Action:  string(event.Type),

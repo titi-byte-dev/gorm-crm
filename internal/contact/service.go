@@ -8,8 +8,6 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 )
 
-// Service contém a lógica de negócio para Contactos.
-// Não conhece HTTP, não conhece SQL — só regras de negócio.
 type Service struct {
 	repo Repository
 	bus  *events.Bus
@@ -19,7 +17,6 @@ func NewService(repo Repository, bus *events.Bus) *Service {
 	return &Service{repo: repo, bus: bus}
 }
 
-// CreateContactDTO é o input validado para criar um contacto.
 type CreateContactDTO struct {
 	Name    string `json:"name"    validate:"required,min=2,max=100"`
 	Email   string `json:"email"   validate:"required,email"`
@@ -28,7 +25,6 @@ type CreateContactDTO struct {
 	Notes   string `json:"notes"   validate:"omitempty,max=1000"`
 }
 
-// UpdateContactDTO é o input para atualizar — todos os campos opcionais.
 type UpdateContactDTO struct {
 	Name    *string `json:"name"    validate:"omitempty,min=2,max=100"`
 	Phone   *string `json:"phone"   validate:"omitempty,max=20"`

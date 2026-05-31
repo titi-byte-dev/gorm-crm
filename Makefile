@@ -35,6 +35,19 @@ lint: ## Corre o linter (requer golangci-lint)
 tidy: ## Atualiza dependências (go mod tidy)
 	go mod tidy
 
+setup: ## Configura o repositório após clone (commit template, etc.)
+	git config commit.template .gitmessage
+	@echo "✅ Commit template configurado. Usa 'git commit' (sem -m) para ver o template."
+
+db/up: ## Inicia o PostgreSQL com Docker
+	docker-compose up -d postgres
+
+db/down: ## Para o PostgreSQL
+	docker-compose down
+
+db/logs: ## Mostra os logs do PostgreSQL
+	docker-compose logs -f postgres
+
 clean: ## Remove binários e ficheiros temporários
 	@rm -rf bin/ coverage.out coverage.html
 	@echo "🧹 Limpo"

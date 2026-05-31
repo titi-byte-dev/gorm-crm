@@ -1,0 +1,21 @@
+# <tipo>(<escopo>): <descrição curta> — max 72 chars
+# |<----  Máximo 72 chars  ---->|
+#
+# Tipos: feat fix refactor test docs chore perf style ci
+# Escopo: contact lead deal task auth shared db ci (opcional)
+#
+# Exemplos:
+#   feat(contact): add search endpoint with company filter
+#   fix(auth): handle expired refresh token correctly
+#   refactor(deal): extract stage transition to service layer
+#   test(contact): add integration tests for repository
+#   docs(m04): add git workflow ADR and commit template
+#   chore: update go dependencies to latest patch versions
+#
+# Body — explica o PORQUÊ, não o QUÊ (opcional, linha em branco acima):
+
+# Breaking change? (opcional):
+# BREAKING CHANGE: <descrição do que quebra e como migrar>
+#
+# Refs (opcional):
+# Refs: #123

@@ -1,24 +1,23 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M02 — Fundamentos Go](https://github.com/titi-byte-dev/gorm-crm/tree/branch-02-go-fundamentos)** &nbsp;|&nbsp;
-`branch-03-sql` &nbsp;|&nbsp;
-**[M04 — Git Workflow ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-04-git-workflow)**
+**[⬅️ M03 — SQL & PostgreSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-03-sql)** &nbsp;|&nbsp;
+`branch-04-git-workflow` &nbsp;|&nbsp;
+**[M05 — REST API ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-05-rest-api)**
 
-`███░░░░░░░░░░░░░░░░░` Módulo **03 / 18** — Nível 🟢 Júnior
+`████░░░░░░░░░░░░░░░░` Módulo **04 / 18** — Nível 🟢 Júnior
 
 </div>
 
 ---
 
-# 🗄️ Módulo 03 — SQL & PostgreSQL
+# 🌿 Módulo 04 — Git Workflow
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat&logo=postgresql&logoColor=white)](https://postgresql.org)
-[![Módulo](https://img.shields.io/badge/Módulo-03%20%2F%2018-brightgreen)](.)
+[![Módulo](https://img.shields.io/badge/Módulo-04%20%2F%2018-brightgreen)](.)
 
-> **O que foi construído:** As `Repository interfaces` do M02 ganham implementação real em PostgreSQL. CRUD completo de Contactos com GORM, migrations versionadas e paginação com filtros.
+> **O que foi construído:** O próprio workflow que usas neste curso — branching strategy, conventional commits, PR template e o commit message template. Este módulo documenta e formaliza o que já estamos a fazer.
 
 ---
 
@@ -26,230 +25,170 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Ligar uma app Go ao PostgreSQL com GORM
-- [ ] Criar e correr migrations SQL versionadas
-- [ ] Implementar CRUD completo com Repository Pattern
-- [ ] Fazer queries com filtros, ordenação e paginação
-- [ ] Separar o modelo GORM do domain model
-- [ ] Usar transações ACID quando necessário
+- [ ] Explicar a estratégia de branches deste projeto e porquê
+- [ ] Escrever commits no formato Conventional Commits
+- [ ] Usar `git add -p` para commits atómicos e limpos
+- [ ] Criar e navegar PRs com template estruturado
+- [ ] Configurar e usar o commit message template
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-03-sql
+git checkout branch-04-git-workflow
 
-# Inicia o PostgreSQL
-docker-compose up -d postgres
-
-# Copia e configura as variáveis de ambiente
-cp .env.example .env
-
-# Corre a app
-make run
-
-# Testa o CRUD
-curl -X POST http://localhost:8080/api/v1/contacts \
-  -H "Content-Type: application/json" \
-  -d '{"name":"João Silva","email":"joao@example.com","company":"Acme"}'
+# Configura o repositório (commit template + outros)
+make setup
 ```
-
-> [!NOTE]
-> Precisas de ter Docker instalado para correr o PostgreSQL. Alternativa: instala PostgreSQL localmente e ajusta o `.env`.
 
 ---
 
-## 🗺️ O que foi construído
+## 🗺️ Estrutura de Branches do Curso
 
 ```mermaid
-flowchart TD
-    subgraph HTTP["Handler Layer"]
-        H["ContactHandler\nPOST · GET · PUT · DELETE"]
-    end
-    subgraph SVC["Service Layer"]
-        S["ContactService\nRegras de negócio\nEmite eventos"]
-    end
-    subgraph REPO["Repository Layer"]
-        I["contact.Repository\ninterface"]
-        PG["postgresRepository\nimplementação GORM"]
-        I --> PG
-    end
-    subgraph DB["Infraestrutura"]
-        GORM["GORM v2"]
-        PGS[("PostgreSQL 16")]
-        GORM --> PGS
+flowchart LR
+    MAIN["⬛ main\nSempre estável\nSó avança via PR"]
+
+    subgraph JR["🟢 Júnior — branches 01 a 08"]
+        B01["branch-01-setup"]
+        B02["branch-02-go-fundamentos"]
+        B03["branch-03-sql"]
+        B04["branch-04-git-workflow ◀ estás aqui"]
+        B05["branch-05-rest-api"]
+        B06["..."]
+        B08["branch-08-docker"]
     end
 
-    H --> S --> I
-    PG --> GORM
+    B08 -->|"PR mergeado"| MAIN
+
+    style MAIN fill:#0F62FE,color:#fff
+    style B04 fill:#22c55e,color:#fff
 ```
 
 ---
 
-## 🔍 Conceitos-Chave
+## 📝 Conventional Commits — Referência Rápida
 
-### Separação: Domain Model vs GORM Record
-
-> [!IMPORTANT]
-> O domain model (`Contact` em `model.go`) não conhece GORM. O `contactRecord` é um detalhe de implementação do repositório — se um dia mudarmos de PostgreSQL para outro DB, o domain model não muda.
-
-```go
-// Domain model — puro Go, sem dependências externas
-type Contact struct {
-    ID      uuid.UUID
-    Name    string
-    Email   string
-    OwnerID uuid.UUID
-}
-
-// GORM record — só existe dentro do repositório
-type contactRecord struct {
-    ID      uuid.UUID `gorm:"type:uuid;primaryKey"`
-    Name    string    `gorm:"not null"`
-    Email   string    `gorm:"uniqueIndex;not null"`
-    OwnerID uuid.UUID `gorm:"type:uuid;not null;index"`
-}
 ```
+<tipo>(<escopo>): <o quê, imperativo, max 72 chars>
+
+[porquê — só quando não é óbvio]
+```
+
+<details>
+<summary><strong>Ver: exemplos reais do GoRM</strong></summary>
+
+```bash
+# ✅ Bons commits — descrevem o quê + porquê quando necessário
+feat(contact): add ILIKE search with trigram index
+
+fix(auth): invalidate refresh token on logout
+
+Tokens persisted after logout, allowing session reuse.
+Added Redis blacklist with TTL matching token expiry.
+
+refactor(deal): move stage validation to domain model
+
+Validation was scattered across handler and service.
+CanTransitionTo() now lives in Deal.Stage — single source of truth.
+
+docs(m04): add git workflow guide and commit template
+
+chore: upgrade fiber v2.52.6 → v2.52.13 (CVE-2024-XXXX)
+
+# ❌ Commits vagos — não descrevem o quê nem o porquê
+fix: bug
+update stuff
+wip
+changes
+```
+
+</details>
 
 ---
 
-### Interface Satisfaction em Compile-Time
-
-```go
-// Esta linha faz o compilador verificar que postgresRepository
-// implementa contact.Repository — erro imediato se falhar
-var _ Repository = (*postgresRepository)(nil)
-```
+## 🔍 `git add -p` — O Hábito Mais Importante
 
 > [!TIP]
-> É um padrão Go idiomático. Sem isto, só descobres que a interface não está implementada quando tentas usar o tipo — potencialmente em runtime.
+> Em vez de `git add .` (adiciona tudo), usa `git add -p` para rever e adicionar **por hunks**. Cada commit fica atómico — uma mudança, uma razão.
 
----
+```bash
+git add -p
 
-### Paginação com Filters
+# Para cada hunk, o Git pergunta:
+# Stage this hunk [y,n,q,a,d,/,s,?,e]?
+# y — sim, adicionar
+# n — não
+# s — dividir em hunks menores
+# e — editar manualmente o hunk
+```
 
 <details>
-<summary><strong>Ver: QueryString → Filters → SQL</strong></summary>
+<summary><strong>Ver: exemplo de sessão git add -p</strong></summary>
 
-```
-GET /api/v1/contacts?search=João&company=Acme&page=2&limit=10&sort_by=name&sort_dir=asc
+```diff
+# Tens dois tipos de mudança no mesmo ficheiro:
+# 1. Nova feature (queres commitar)
+# 2. Comentário que adicionaste a testar (não queres)
+
+@@ -45,6 +45,12 @@ func (s *ContactService) Create(...) {
++   // TODO: remover este log de debug
++   fmt.Println("debug:", contact)
++
+    saved, err := s.repo.Save(contact)
+
+# → respondes "n" a este hunk
+
+@@ -58,6 +64,8 @@ func (s *ContactService) Create(...) {
++   s.bus.Publish(events.Event{
++       Type:    events.ContactCreated,
++       Payload: saved,
++   })
+
+# → respondes "y" a este hunk
 ```
 
-```go
-// Handler lê os query params
-filters := Filters{
-    Search:  c.Query("search"),   // "João"
-    Company: c.Query("company"),  // "Acme"
-    Page:    c.QueryInt("page", 1),
-    Limit:   c.QueryInt("limit", 20),
-}
-
-// Repository gera a query
-query.Where("name ILIKE ? OR email ILIKE ?", "%João%", "%João%").
-      Where("company ILIKE ?", "%Acme%").
-      Order("name asc").
-      Limit(10).
-      Offset(10) // (page-1) * limit
-```
-
-**Response envelope:**
-```json
-{
-  "data":  [...],
-  "total": 47,
-  "page":  2,
-  "limit": 10
-}
-```
+Resultado: o commit só inclui o event publishing, não o debug print.
 
 </details>
 
 ---
 
-### Migrations Versionadas
+## 🔄 Fluxo Completo de um Módulo
 
-<details>
-<summary><strong>Ver: estrutura de migrations</strong></summary>
+```mermaid
+sequenceDiagram
+    participant DEV as Tu
+    participant LOCAL as Git Local
+    participant GH as GitHub
 
+    DEV->>LOCAL: git checkout main && git pull
+    DEV->>LOCAL: git checkout -b branch-05-rest-api
+    loop Commits atómicos
+        DEV->>LOCAL: git add -p
+        DEV->>LOCAL: git commit (usa template)
+    end
+    DEV->>LOCAL: git tag v0.5.0
+    DEV->>GH: git push origin branch-05-rest-api --tags
+    DEV->>GH: gh pr create (template preenchido)
+    GH->>GH: CI — lint + test + build ✅
+    DEV->>GH: gh pr merge
+    DEV->>LOCAL: git checkout main && git pull
 ```
-migrations/
-├── 001_create_users.up.sql      ← aplica
-├── 001_create_users.down.sql    ← reverte
-├── 002_create_contacts.up.sql
-└── 002_create_contacts.down.sql
-```
-
-```sql
--- 002_create_contacts.up.sql
-CREATE TABLE contacts (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name       VARCHAR(100) NOT NULL,
-    email      VARCHAR(255) NOT NULL,
-    owner_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Índices para pesquisa ILIKE eficiente
-CREATE INDEX idx_contacts_name_search ON contacts USING gin(name gin_trgm_ops);
-```
-
-> [!NOTE]
-> O índice `gin_trgm_ops` usa trigrams para tornar o `ILIKE '%texto%'` eficiente. Sem ele, o PostgreSQL faz full table scan — lento em tabelas grandes.
-
-</details>
 
 ---
 
 ## 📁 Ficheiros deste módulo
 
-<details>
-<summary><strong>Ver ficheiros criados/modificados</strong></summary>
-
 ```
 Criados:
-├── internal/contact/
-│   ├── repository_pg.go   ← implementação PostgreSQL da contact.Repository
-│   ├── service.go         ← CreateContactDTO, lógica de negócio, eventos
-│   └── handler.go         ← HTTP handlers + RegisterRoutes
-├── pkg/database/
-│   └── postgres.go        ← conexão GORM + connection pool
-├── migrations/
-│   ├── 001_create_users.up.sql / .down.sql
-│   └── 002_create_contacts.up.sql / .down.sql
-└── docker-compose.yml     ← PostgreSQL local (MongoDB e Redis comentados)
+├── .gitmessage                    ← template de commit (ativa com make setup)
+├── docs/git-workflow.md           ← guia de referência completo
+└── docs/adr/007-git-workflow.md   ← decisão de design documentada
 
 Modificados:
-└── cmd/api/main.go        ← liga DB + regista rotas de contactos
-```
-
-</details>
-
----
-
-## 🔄 Fluxo de um Request
-
-```mermaid
-sequenceDiagram
-    actor Client
-    participant H as ContactHandler
-    participant S as ContactService
-    participant R as postgresRepository
-    participant DB as PostgreSQL
-
-    Client->>H: POST /api/v1/contacts {name, email}
-    H->>H: BodyParser + validação básica
-    H->>S: Create(ownerID, dto)
-    S->>R: FindByEmail(email)
-    R->>DB: SELECT WHERE email = ?
-    DB-->>R: not found
-    S->>R: Save(contact)
-    R->>DB: INSERT INTO contacts ...
-    DB-->>R: contact com ID + timestamps
-    R-->>S: *Contact
-    S->>S: Publish(ContactCreated event)
-    S-->>H: *Contact
-    H-->>Client: 201 Created {contact}
+└── Makefile                       ← make setup · make db/up · make db/down
 ```
 
 ---
@@ -258,26 +197,26 @@ sequenceDiagram
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Adiciona endpoint `GET /api/v1/contacts/:id/tasks` que devolve as tasks de um contacto
-- **Nível 2** — Implementa soft delete (campo `deleted_at`) em vez de DELETE real
-- **Nível 3** — Adiciona uma transação: criar um Lead automaticamente quando um Contacto é criado
+- **Nível 1** — Ativa o template e faz um commit usando `git commit` (sem `-m`)
+- **Nível 2** — Usa `git add -p` para separar duas mudanças em dois commits distintos
+- **Nível 3** — Cria uma branch de desafio, resolve o Challenge do M03, abre um PR
 
 ---
 
 ## ✅ Checklist antes de avançar
 
-- [ ] `docker-compose up -d postgres` e `make run` funcionam
-- [ ] CRUD de contactos testado com `curl` ou Postman
-- [ ] Entendes a diferença entre domain model e GORM record
-- [ ] Sabes o que é `var _ Repository = (*postgresRepository)(nil)` e porquê
+- [ ] `make setup` corrido — commit template ativo
+- [ ] Entendes a diferença entre `git add .` e `git add -p`
+- [ ] Consegues explicar o formato Conventional Commits
+- [ ] Sabes navegar entre branches e ver diffs entre módulos
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M02 — Fundamentos Go](https://github.com/titi-byte-dev/gorm-crm/tree/branch-02-go-fundamentos)** &nbsp;|&nbsp;
-`03 / 18` &nbsp;|&nbsp;
-**[M04 — Git Workflow ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-04-git-workflow)**
+**[⬅️ M03 — SQL & PostgreSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-03-sql)** &nbsp;|&nbsp;
+`04 / 18` &nbsp;|&nbsp;
+**[M05 — REST API ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-05-rest-api)**
 
 </div>

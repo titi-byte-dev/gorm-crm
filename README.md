@@ -1,380 +1,303 @@
-# 🚀 GoRM — Um CRM construído em Go
+<!-- NAVIGATION BAR -->
+<div align="center">
 
-> **Curso de backend com didática de autoconstrução.**
-> Cada branch Git = 1 módulo de aprendizagem. Do zero ao deploy, do Júnior ao Sénior.
+**[⬅️ Início](https://github.com/titi-byte-dev/gorm-crm/tree/main)** &nbsp;|&nbsp;
+`branch-01-setup` &nbsp;|&nbsp;
+**[M02 — Fundamentos Go ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-02-go-fundamentos)**
 
----
+`█░░░░░░░░░░░░░░░░░░` Módulo **01 / 18** — Nível 🟢 Júnior
 
-## 📦 Módulo 01 — Setup & Estrutura Go
-
-> **Branch:** `branch-01-setup` | **Nível:** 🟢 Júnior | **Duração:** ~3 dias
-
-### O que vais aprender
-
-- Como estruturar um projeto Go com o Standard Layout
-- O que são módulos Go (`go.mod`, `go.sum`)
-- Como criar um servidor HTTP com Fiber
-- Como organizar middlewares e error handling global
-- Makefile para produtividade no dia-a-dia
-
-### O que foi construído neste módulo
-
-- `GET /health` — endpoint de saúde da app
-- Error handler global que mapeia erros de domínio para HTTP
-- Middleware de logging estruturado
-- Package `pkg/logger` com `slog` (stdlib Go 1.21+)
-- Makefile com comandos: `run`, `build`, `test`, `lint`, `tidy`
-
-### Contexto no GoRM
-
-```mermaid
-flowchart LR
-    A["go mod init"] --> B["Standard Layout\ncmd/ internal/ pkg/"]
-    B --> C["Fiber setup\ncmd/api/main.go"]
-    C --> D["Middlewares\nlogger + recover"]
-    D --> E["GET /health\n→ 200 OK"]
-    E --> F["make run ✅\nlocalhost:8080"]
-```
+</div>
 
 ---
 
+# 📦 Módulo 01 — Setup & Estrutura Go
+
+[![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Fiber](https://img.shields.io/badge/Fiber-v2.52-00ACD7?style=flat)](https://gofiber.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Modules](https://img.shields.io/badge/Módulos-18-blue)](docs/)
+[![Módulo](https://img.shields.io/badge/Módulo-01%20%2F%2018-brightgreen)](.)
+
+> **O que vais construir:** O esqueleto do GoRM CRM — projeto Go inicializado, servidor HTTP a correr e o primeiro endpoint funcional (`GET /health`).
 
 ---
 
-## 📖 O que é este repositório?
+## 🎯 Objetivos de Aprendizagem
 
-**GoRM** é simultaneamente um **curso de backend em Go** e uma **aplicação CRM real e funcional**.
+Ao terminar este módulo consegues:
 
-A ideia é simples: **aprendes construindo**. Cada branch representa uma etapa de aprendizagem — fazes `git checkout` e estás imediatamente no contexto certo, com código funcional, documentação e desafios práticos.
-
-No final, tens um CRM completo deployado, testado e documentado.
-
----
-
-## 🗺️ Mapa do Curso
-
-```mermaid
-flowchart TD
-    START([🚀 START]) --> M01
-
-    subgraph JUNIOR["🟢 NÍVEL JÚNIOR"]
-        M01[📦 M01 · Setup and Estrutura Go]
-        M02[🔤 M02 · Fundamentos Go]
-        M03[🗄️ M03 · SQL e PostgreSQL]
-        M04[🌿 M04 · Git Workflow]
-        M05[🌐 M05 · REST API]
-        M06[🔐 M06 · Autenticacao e Auth]
-        M07[🏗️ M07 · Arquitetura MVC]
-        M08[🐳 M08 · Docker]
-        M01 --> M02 --> M03 --> M04 --> M05 --> M06 --> M07 --> M08
-    end
-
-    M08 --> JUNIOR_BADGE([🏆 Programador Junior])
-
-    subgraph PLENO["🔵 NÍVEL PLENO"]
-        M09[🍃 M09 · NoSQL e MongoDB]
-        M10[✨ M10 · Clean Code]
-        M11[🧩 M11 · OOP Avancado]
-        M12[🏛️ M12 · SOLID]
-        M13[🤸 M13 · Object Calisthenics]
-        M14[🧪 M14 · Testes Automatizados]
-        M15[🎨 M15 · Design Patterns]
-        M09 --> M10 --> M11 --> M12 --> M13 --> M14 --> M15
-    end
-
-    JUNIOR_BADGE --> M09
-
-    subgraph SENIOR["🟣 NÍVEL SÉNIOR"]
-        M16[🔧 M16 · Refactoring]
-        M17[⚡ M17 · Performance e Cache]
-        M18[☁️ M18 · Cloud e CI/CD]
-        M16 --> M17 --> M18
-    end
-
-    M15 --> M16
-    M18 --> SENIOR_BADGE([🎓 Programador Senior])
-```
+- [ ] Explicar a estrutura `cmd/`, `internal/`, `pkg/` e porquê existe
+- [ ] Criar e configurar um módulo Go (`go.mod`)
+- [ ] Montar um servidor HTTP com Fiber com middlewares básicos
+- [ ] Separar error handling numa camada dedicada
+- [ ] Usar um `Makefile` para automatizar tarefas comuns
 
 ---
 
-## 🌿 Navegação por Branches
+## ⚡ Começa já
 
 ```bash
-git clone https://github.com/titi-byte-dev/gorm-crm.git
-cd gorm-crm
-
-# Navega para qualquer módulo
 git checkout branch-01-setup
-git checkout branch-05-rest-api
-git checkout branch-12-solid
+make run
 ```
 
-| Branch | Módulo | Nível | Feature no GoRM |
-|--------|--------|-------|-----------------|
-| `branch-01-setup` | Setup e Estrutura | 🟢 Junior | Projeto inicializado, `GET /health` |
-| `branch-02-go-fundamentos` | Fundamentos Go | 🟢 Junior | Domain models definidos |
-| `branch-03-sql` | SQL e PostgreSQL | 🟢 Junior | CRUD de Contactos |
-| `branch-04-git-workflow` | Git Workflow | 🟢 Junior | Branching strategy |
-| `branch-05-rest-api` | REST API | 🟢 Junior | API REST completa |
-| `branch-06-auth` | Autenticacao | 🟢 Junior | JWT + RBAC |
-| `branch-07-mvc-layers` | Arquitetura MVC | 🟢 Junior | Camadas separadas |
-| `branch-08-docker` | Docker | 🟢 **→ Junior** | App containerizada |
-| `branch-09-nosql` | NoSQL e MongoDB | 🔵 Pleno | Activity logs |
-| `branch-10-clean-code` | Clean Code | 🔵 Pleno | Codebase refatorada |
-| `branch-11-oop` | OOP Avancado | 🔵 Pleno | Interfaces avancadas |
-| `branch-12-solid` | SOLID | 🔵 Pleno | SOLID aplicado |
-| `branch-13-calisthenics` | Object Calisthenics | 🔵 Pleno | Regras aplicadas |
-| `branch-14-testes` | Testes | 🔵 Pleno | Unit + Integration + E2E |
-| `branch-15-patterns` | Design Patterns | 🔵 Pleno | 10+ patterns aplicados |
-| `branch-16-refactoring` | Refactoring | 🟣 Senior | Tecnicas avancadas |
-| `branch-17-performance` | Performance e Cache | 🟣 Senior | Redis + Jobs async |
-| `branch-18-cloud-cicd` | Cloud e CI/CD | 🟣 **→ Senior** | Deploy + Pipeline |
+```bash
+# Noutro terminal
+curl http://localhost:8080/health
+# → {"service":"gorm-crm","status":"ok","version":"0.1.0"}
+```
+
+> [!TIP]
+> Não tens o `make`? Corre `go run ./cmd/api/main.go` diretamente.
 
 ---
 
-## 🏗️ Modelo de Dados
-
-```mermaid
-erDiagram
-    USER {
-        uuid id
-        string name
-        string email
-        string password_hash
-        enum role
-        timestamp created_at
-    }
-    CONTACT {
-        uuid id
-        string name
-        string email
-        string phone
-        string company
-        uuid owner_id
-    }
-    LEAD {
-        uuid id
-        string title
-        decimal value
-        enum status
-        uuid contact_id
-        uuid owner_id
-    }
-    DEAL {
-        uuid id
-        string title
-        decimal value
-        enum stage
-        uuid lead_id
-        uuid contact_id
-    }
-    TASK {
-        uuid id
-        string title
-        enum priority
-        enum status
-        uuid contact_id
-        uuid deal_id
-    }
-    USER ||--o{ CONTACT : owns
-    USER ||--o{ LEAD : owns
-    CONTACT ||--o{ LEAD : generates
-    LEAD ||--o| DEAL : converts
-    CONTACT ||--o{ TASK : has
-    DEAL ||--o{ TASK : has
-```
-
----
-
-## 🔄 Pipeline de Vendas
-
-```mermaid
-stateDiagram-v2
-    [*] --> Contacto : Novo contacto
-    Contacto --> Lead : Qualificado
-    Lead --> Proposta : Interesse confirmado
-    Proposta --> Negociacao : Proposta enviada
-    Negociacao --> Ganho : Aceite
-    Negociacao --> Perdido : Recusado
-    Ganho --> [*]
-    Perdido --> [*]
-```
-
----
-
-## 🏛️ Arquitetura Final
-
-```mermaid
-flowchart TD
-    Client["Cliente HTTPS"] --> API
-
-    subgraph APP["GoRM Application"]
-        API["API Layer - Fiber"]
-        Service["Service Layer - Business Logic"]
-        Repo["Repository Layer - Data Access"]
-        Worker["Workers - Goroutines Async"]
-        Cache["Cache - Redis"]
-        API --> Service
-        Service --> Repo
-        Service --> Worker
-        Service <--> Cache
-    end
-
-    Repo --> PG[("PostgreSQL")]
-    Repo --> MG[("MongoDB")]
-    Worker --> EMAIL["SMTP - Notificacoes"]
-```
-
----
-
-## 🔐 Fluxo de Autenticacao
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant API
-    participant AuthService
-    participant DB
-    participant JWT
-
-    User->>API: POST /auth/login
-    API->>AuthService: Login(credentials)
-    AuthService->>DB: SELECT user
-    DB-->>AuthService: user record
-
-    alt Password valida
-        AuthService->>JWT: GenerateToken(userID, role)
-        JWT-->>AuthService: signed token
-        API-->>User: 200 OK com token
-    else Password invalida
-        API-->>User: 401 Unauthorized
-    end
-
-    User->>API: GET /contacts com Bearer token
-    API->>JWT: ValidateToken()
-    JWT-->>API: claims
-    API-->>User: 200 OK com contacts
-```
-
----
-
-## 🧪 Piramide de Testes
-
-```mermaid
-flowchart TB
-    E2E["E2E - 5 percent - Fluxos completos via HTTP"]
-    INT["Integracao - 15 percent - Service e Repository com DB real"]
-    UNIT["Unitarios - 80 percent - Service logic, Validacoes, Mappers"]
-    UNIT --> INT --> E2E
-    style UNIT fill:#22c55e,color:#fff
-    style INT fill:#f59e0b,color:#fff
-    style E2E fill:#ef4444,color:#fff
-```
-
----
-
-## ⚙️ CI/CD Pipeline
+## 🗺️ O que foi construído
 
 ```mermaid
 flowchart LR
-    DEV["git push"] --> PR["Pull Request"]
+    A["go mod init\ngithub.com/titi-byte-dev/gorm-crm"] --> B
 
-    subgraph CI["GitHub Actions CI"]
-        L["golangci-lint"] --> T["go test"] --> B["go build"] --> D["docker build"]
+    subgraph B["Standard Go Layout"]
+        direction TB
+        CMD["cmd/api/main.go\nentry point"]
+        INT["internal/shared/\nerrors · middleware"]
+        PKG["pkg/logger/\nlogging estruturado"]
     end
 
-    PR --> CI
-    CI -->|pass| MERGE["Merge to main"]
-
-    subgraph CD["Deploy Pipeline"]
-        R["Push Registry"] --> S["Deploy Staging"] --> ST["Smoke Tests"] --> P["Deploy Prod"]
-    end
-
-    MERGE --> CD
+    B --> C["Fiber v2\nHTTP server"]
+    C --> D["Middlewares\nlogger · recover"]
+    D --> E["GET /health\n200 OK ✅"]
 ```
 
 ---
 
-## 📁 Estrutura de Pastas
+## 📁 Ficheiros deste módulo
+
+<details>
+<summary><strong>Ver estrutura completa de pastas</strong></summary>
 
 ```
 gorm-crm/
-├── cmd/api/main.go
+├── cmd/
+│   └── api/
+│       └── main.go              ← Entry point: Fiber + routes + error handler
+│
 ├── internal/
-│   ├── contact/        # Handler · Service · Repository · Model · DTO
-│   ├── lead/
-│   ├── deal/
-│   ├── task/
-│   ├── auth/           # JWT · Middleware · RBAC
-│   └── shared/         # Errors · Events · Utils
+│   └── shared/
+│       ├── errors/
+│       │   └── errors.go        ← Sentinel errors + HTTP error handler global
+│       └── middleware/
+│           └── logger.go        ← Middleware de logging estruturado
+│
 ├── pkg/
-│   ├── database/
-│   ├── cache/
 │   └── logger/
-├── migrations/
-├── docs/               # Diagramas e ADRs
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-├── docker-compose.yml
-├── Dockerfile
-├── Makefile
-└── .github/workflows/ci.yml
+│       └── logger.go            ← slog: JSON em produção, texto em desenvolvimento
+│
+├── Makefile                     ← run · build · test · lint · tidy
+├── .env.example                 ← Variáveis de ambiente (todas as futuras incluídas)
+└── go.mod / go.sum              ← Módulo Go + dependências
+```
+
+</details>
+
+---
+
+## 🔍 Walkthrough do Código
+
+### `cmd/api/main.go` — O ponto de entrada
+
+> [!NOTE]
+> Em Go, `main.go` dentro de `cmd/api/` separa o executável da lógica reutilizável. Se quiseres um segundo executável (ex: um CLI), crias `cmd/cli/main.go` sem duplicar código.
+
+```go
+app := fiber.New(fiber.Config{
+    AppName:      "GoRM CRM v0.1.0",
+    ErrorHandler: errors.Handler,   // ← centraliza todo o error handling
+})
+
+app.Use(recover.New())              // ← recupera de panics sem crashar
+app.Use(logger.New(...))            // ← loga cada request automaticamente
 ```
 
 ---
 
-## 🛠️ Stack
+### `internal/shared/errors/errors.go` — Erros como valores
 
-| Camada | Tecnologia |
-|--------|-----------|
-| Linguagem | Go 1.22+ |
-| HTTP Framework | Fiber |
-| ORM | GORM + golang-migrate |
-| Base de dados | PostgreSQL |
-| Logs / Historico | MongoDB |
-| Cache | Redis |
-| Auth | JWT (golang-jwt) |
-| Containers | Docker + Docker Compose |
-| CI/CD | GitHub Actions |
-| Cloud | AWS / GCP |
-| Testes | testify + testcontainers |
+> [!IMPORTANT]
+> Go não tem exceções. Erros são **valores de retorno** — esta é uma das diferenças mais importantes para quem vem de outras linguagens. Este ficheiro define os erros de domínio do GoRM e o mapeamento para códigos HTTP.
+
+```go
+var (
+    ErrNotFound     = errors.New("not found")      // → HTTP 404
+    ErrUnauthorized = errors.New("unauthorized")   // → HTTP 401
+    ErrForbidden    = errors.New("forbidden")      // → HTTP 403
+    ErrConflict     = errors.New("conflict")       // → HTTP 409
+    ErrValidation   = errors.New("validation error") // → HTTP 422
+)
+```
+
+**Padrão de uso** (nos módulos seguintes):
+```go
+// No service — devolve erro de domínio
+func (s *ContactService) GetContact(id uuid.UUID) (*Contact, error) {
+    contact, err := s.repo.FindByID(id)
+    if err != nil {
+        return nil, fmt.Errorf("get contact: %w", ErrNotFound)
+    }
+    return contact, nil
+}
+
+// No handler — não precisa saber o código HTTP
+// O ErrorHandler global trata disso
+```
 
 ---
 
-## 🚦 Como Comecar
+### `pkg/logger/logger.go` — Logging estruturado
+
+> [!NOTE]
+> `slog` é parte da stdlib desde Go 1.21. Em desenvolvimento, devolve texto legível. Em produção, devolve JSON que sistemas como Datadog/Loki conseguem indexar.
+
+```go
+// Desenvolvimento
+handler = slog.NewTextHandler(os.Stdout, ...)
+// → time=2026-06-01T10:00:00Z level=DEBUG msg="server started" port=8080
+
+// Produção
+handler = slog.NewJSONHandler(os.Stdout, ...)
+// → {"time":"2026-06-01T10:00:00Z","level":"INFO","msg":"server started","port":8080}
+```
+
+---
+
+## 🧠 Conceitos-Chave
+
+<details>
+<summary><strong>Standard Go Layout — porquê esta estrutura?</strong></summary>
+
+```
+cmd/        → executáveis (um por subpasta)
+internal/   → código privado — só importável dentro deste módulo Go
+pkg/        → código reutilizável — pode ser importado por outros projetos
+```
+
+A pasta `internal/` é **reforçada pelo compilador Go** — se um projeto externo tentar importar algo de `internal/`, o build falha. Isto garante que as abstrações internas não "vazam" para fora.
+
+</details>
+
+<details>
+<summary><strong>Porque Fiber e não net/http nativo?</strong></summary>
+
+Ver [ADR-001](docs/adr/001-http-framework.md) para a decisão completa.
+
+Resumo: Fiber tem API familiar (similar a Express), alta performance, e permite ao estudante focar na lógica Go sem boilerplate HTTP. No módulo de performance (M17) analisamos o custo desta abstração.
+
+</details>
+
+<details>
+<summary><strong>O que é o Makefile e porquê usar?</strong></summary>
+
+```makefile
+make run        → go run ./cmd/api/main.go
+make build      → compila o binário em bin/
+make test       → go test -v -race ./...
+make lint       → golangci-lint run ./...
+make tidy       → go mod tidy
+```
+
+`.PHONY` diz ao Make que estes targets não são ficheiros — sem isso, se existir um ficheiro chamado `run`, o Make ignora o comando.
+
+</details>
+
+---
+
+## 🔄 O que muda nos módulos seguintes
+
+```mermaid
+flowchart TD
+    M01["✅ M01 — Estrutura\nFiber · health · errors"]
+    M02["M02 — Domain Models\nstructs · interfaces · goroutines"]
+    M03["M03 — PostgreSQL\nCRUD · GORM · migrations"]
+    M05["M05 — REST API\nrotas · middlewares · paginação"]
+    M06["M06 — Auth\nJWT · RBAC · refresh tokens"]
+
+    M01 -->|"adiciona models"| M02
+    M02 -->|"adiciona DB"| M03
+    M03 -->|"expande API"| M05
+    M05 -->|"adiciona segurança"| M06
+
+    style M01 fill:#22c55e,color:#fff
+    style M02 fill:#e5e7eb
+    style M03 fill:#e5e7eb
+    style M05 fill:#e5e7eb
+    style M06 fill:#e5e7eb
+```
+
+---
+
+## 🎯 Desafio
+
+> [!TIP]
+> Antes de avançar para o módulo seguinte, experimenta o desafio deste módulo.
+
+**Ver:** [CHALLENGE.md](CHALLENGE.md)
+
+Resumo dos desafios disponíveis:
+- **Nível 1** — Endpoint `GET /api/v1/version` com `runtime.Version()`
+- **Nível 2** — Graceful shutdown com `os/signal`
+- **Nível 3** — Investigar o Standard Go Layout em detalhe
+
+---
+
+## 📚 Recursos
+
+| Recurso | Porquê ler |
+|---------|-----------|
+| [Effective Go](https://go.dev/doc/effective_go) | Idiomas e convenções Go |
+| [Standard Go Layout](https://github.com/golang-standards/project-layout) | Porquê esta estrutura de pastas |
+| [Fiber Docs](https://docs.gofiber.io) | Referência completa do framework |
+| [slog (Go 1.21)](https://pkg.go.dev/log/slog) | Logging estruturado na stdlib |
+| [ADR-001](docs/adr/001-http-framework.md) | Porquê Fiber foi escolhido |
+
+---
+
+## ✅ Checklist antes de avançar
+
+- [ ] `make run` funciona e `GET /health` responde
+- [ ] Entendes a diferença entre `internal/` e `pkg/`
+- [ ] Sabes o que faz o `ErrorHandler` global
+- [ ] Leste (ou tentaste) pelo menos o Desafio Nível 1
+
+---
+
+<!-- NAVIGATION BAR BOTTOM -->
+<div align="center">
+
+**[⬅️ Início](https://github.com/titi-byte-dev/gorm-crm/tree/main)** &nbsp;|&nbsp;
+`01 / 18` &nbsp;|&nbsp;
+**[M02 — Fundamentos Go ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-02-go-fundamentos)**
+
+</div>
+
+---
+
+<details>
+<summary>📋 Sobre o curso GoRM</summary>
+
+**GoRM** é um curso de backend em Go com didática de autoconstrução. Cada branch Git é um módulo de aprendizagem — fazes `git checkout` e estás no contexto certo, com código funcional, documentação e desafios.
 
 ```bash
-git clone https://github.com/titi-byte-dev/gorm-crm.git
-cd gorm-crm
-git checkout branch-01-setup
-cat README.md
-make run
-curl http://localhost:8080/health
+# Navegar entre módulos
+git checkout branch-01-setup        # este módulo
+git checkout branch-05-rest-api     # saltar para REST API
+git checkout branch-12-solid        # saltar para SOLID
+
+# Ver o que mudou num módulo
+git diff branch-01-setup..branch-02-go-fundamentos
 ```
 
----
+Ver [docs/modules/overview.md](docs/modules/overview.md) para o mapa completo.
 
-## 📋 Checklist por Modulo
-
-- [ ] README.md com objetivo claro
-- [ ] Diagrama Mermaid de contexto
-- [ ] Codigo Go funcional e testavel
-- [ ] Testes (a partir do M03)
-- [ ] CHALLENGE.md com exercicio pratico
-- [ ] ADR se houve decisao de design
-- [ ] git tag no final do modulo
-
----
-
-## 📜 Licenca
-
-MIT © [titi-byte-dev](https://github.com/titi-byte-dev)
-
----
-
-> *"O melhor codigo e o codigo que tu proprio construiste, entendes e consegues explicar."*
+</details>

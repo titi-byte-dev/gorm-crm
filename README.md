@@ -1,24 +1,24 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M01 — Setup](https://github.com/titi-byte-dev/gorm-crm/tree/branch-01-setup)** &nbsp;|&nbsp;
-`branch-02-go-fundamentos` &nbsp;|&nbsp;
-**[M03 — SQL & PostgreSQL ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-03-sql)**
+**[⬅️ M02 — Fundamentos Go](https://github.com/titi-byte-dev/gorm-crm/tree/branch-02-go-fundamentos)** &nbsp;|&nbsp;
+`branch-03-sql` &nbsp;|&nbsp;
+**[M04 — Git Workflow ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-04-git-workflow)**
 
-`██░░░░░░░░░░░░░░░░░░` Módulo **02 / 18** — Nível 🟢 Júnior
+`███░░░░░░░░░░░░░░░░░` Módulo **03 / 18** — Nível 🟢 Júnior
 
 </div>
 
 ---
 
-# 🔤 Módulo 02 — Fundamentos Go
+# 🗄️ Módulo 03 — SQL & PostgreSQL
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![Testes](https://img.shields.io/badge/testes-18%20passing-brightgreen)](tests/unit/)
-[![Módulo](https://img.shields.io/badge/Módulo-02%20%2F%2018-brightgreen)](.)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat&logo=postgresql&logoColor=white)](https://postgresql.org)
+[![Módulo](https://img.shields.io/badge/Módulo-03%20%2F%2018-brightgreen)](.)
 
-> **O que foi construído:** Os domain models do GoRM CRM — as structs, interfaces e lógica de negócio que representam Contactos, Leads, Deals, Tasks e Utilizadores. O Event Bus em goroutines para comunicação assíncrona.
+> **O que foi construído:** As `Repository interfaces` do M02 ganham implementação real em PostgreSQL. CRUD completo de Contactos com GORM, migrations versionadas e paginação com filtros.
 
 ---
 
@@ -26,22 +26,37 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Criar structs com tags JSON e perceber receivers de valor vs ponteiro
-- [ ] Definir e implementar interfaces implícitas (o idioma Go)
-- [ ] Usar tipos personalizados (`type Status string`) com métodos
-- [ ] Lançar goroutines e comunicar via channels
-- [ ] Escrever table-driven tests com `t.Parallel()`
-- [ ] Distinguir quando usar `*T` (ponteiro) vs `T` (valor)
+- [ ] Ligar uma app Go ao PostgreSQL com GORM
+- [ ] Criar e correr migrations SQL versionadas
+- [ ] Implementar CRUD completo com Repository Pattern
+- [ ] Fazer queries com filtros, ordenação e paginação
+- [ ] Separar o modelo GORM do domain model
+- [ ] Usar transações ACID quando necessário
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-02-go-fundamentos
-go test ./tests/unit/...
+git checkout branch-03-sql
+
+# Inicia o PostgreSQL
+docker-compose up -d postgres
+
+# Copia e configura as variáveis de ambiente
+cp .env.example .env
+
+# Corre a app
 make run
+
+# Testa o CRUD
+curl -X POST http://localhost:8080/api/v1/contacts \
+  -H "Content-Type: application/json" \
+  -d '{"name":"João Silva","email":"joao@example.com","company":"Acme"}'
 ```
+
+> [!NOTE]
+> Precisas de ter Docker instalado para correr o PostgreSQL. Alternativa: instala PostgreSQL localmente e ajusta o `.env`.
 
 ---
 
@@ -49,252 +64,138 @@ make run
 
 ```mermaid
 flowchart TD
-    subgraph MODELS["Domain Models"]
-        U["user.User\nRole: admin·manager·seller"]
-        C["contact.Contact\nFilters + Pagination"]
-        L["lead.Lead\nStatus com transições válidas"]
-        D["deal.Deal\nStage com pipeline de vendas"]
-        T["task.Task\nPriority · IsOverdue()"]
+    subgraph HTTP["Handler Layer"]
+        H["ContactHandler\nPOST · GET · PUT · DELETE"]
+    end
+    subgraph SVC["Service Layer"]
+        S["ContactService\nRegras de negócio\nEmite eventos"]
+    end
+    subgraph REPO["Repository Layer"]
+        I["contact.Repository\ninterface"]
+        PG["postgresRepository\nimplementação GORM"]
+        I --> PG
+    end
+    subgraph DB["Infraestrutura"]
+        GORM["GORM v2"]
+        PGS[("PostgreSQL 16")]
+        GORM --> PGS
     end
 
-    subgraph INTERFACES["Repository Interfaces"]
-        UR["user.Repository"]
-        CR["contact.Repository"]
-        LR["lead.Repository"]
-        DR["deal.Repository"]
-        TR["task.Repository"]
-    end
-
-    subgraph BUS["Event Bus"]
-        EB["events.Bus\nchannel + goroutine worker"]
-        EV["EventTypes\ncontact.created · deal.won · ..."]
-    end
-
-    U --> UR
-    C --> CR
-    L --> LR
-    D --> DR
-    T --> TR
-
-    EB --> EV
+    H --> S --> I
+    PG --> GORM
 ```
 
 ---
 
-## 🔍 Conceitos Go — Explicados com código real
+## 🔍 Conceitos-Chave
 
-### Structs e tags JSON
-
-```go
-type Deal struct {
-    ID        uuid.UUID  `json:"id"`
-    LeadID    *uuid.UUID `json:"lead_id,omitempty"` // pointer = opcional
-    ClosedAt  *time.Time `json:"closed_at,omitempty"` // nil enquanto aberto
-    CreatedAt time.Time  `json:"created_at"`
-}
-```
-
-> [!NOTE]
-> `*uuid.UUID` (ponteiro) em vez de `uuid.UUID` (valor) significa que o campo pode ser `nil`. Usa-se quando o campo é opcional — evita o "zero value" enganoso (`uuid.Nil`). O `omitempty` na tag JSON omite o campo quando é `nil`.
-
----
-
-### Interfaces implícitas — a superpotência de Go
-
-```go
-// Definição — em contact/model.go
-type Repository interface {
-    FindByID(id uuid.UUID) (*Contact, error)
-    Save(contact *Contact) (*Contact, error)
-    // ...
-}
-
-// Implementação PostgreSQL — em contact/repository_pg.go (Módulo 03)
-type postgresRepository struct{ db *gorm.DB }
-
-func (r *postgresRepository) FindByID(id uuid.UUID) (*Contact, error) { ... }
-func (r *postgresRepository) Save(contact *Contact) (*Contact, error) { ... }
-// Satisfaz contact.Repository sem declaração explícita
-
-// Mock para testes — em tests/unit/
-type mockRepository struct{ contacts map[uuid.UUID]*Contact }
-
-func (m *mockRepository) FindByID(id uuid.UUID) (*Contact, error) { ... }
-// Também satisfaz contact.Repository — trocável sem alterar o Service
-```
+### Separação: Domain Model vs GORM Record
 
 > [!IMPORTANT]
-> Em Java/C# declaras `implements Repository`. Em Go, **se tens os métodos, implementas a interface** — sem palavras-chave. Isto permite criar mocks de teste para qualquer interface, incluindo de bibliotecas externas.
+> O domain model (`Contact` em `model.go`) não conhece GORM. O `contactRecord` é um detalhe de implementação do repositório — se um dia mudarmos de PostgreSQL para outro DB, o domain model não muda.
+
+```go
+// Domain model — puro Go, sem dependências externas
+type Contact struct {
+    ID      uuid.UUID
+    Name    string
+    Email   string
+    OwnerID uuid.UUID
+}
+
+// GORM record — só existe dentro do repositório
+type contactRecord struct {
+    ID      uuid.UUID `gorm:"type:uuid;primaryKey"`
+    Name    string    `gorm:"not null"`
+    Email   string    `gorm:"uniqueIndex;not null"`
+    OwnerID uuid.UUID `gorm:"type:uuid;not null;index"`
+}
+```
 
 ---
 
-### Tipos personalizados com comportamento
-
-<details>
-<summary><strong>Ver: Estado de um Lead com transições válidas</strong></summary>
+### Interface Satisfaction em Compile-Time
 
 ```go
-type Status string
-
-const (
-    StatusNew       Status = "new"
-    StatusContacted Status = "contacted"
-    StatusQualified Status = "qualified"
-    StatusLost      Status = "lost"
-)
-
-// CanTransitionTo encapsula as regras de negócio no tipo.
-// O caller não precisa de saber quais transições são válidas.
-func (s Status) CanTransitionTo(next Status) bool {
-    transitions := map[Status][]Status{
-        StatusNew:       {StatusContacted, StatusLost},
-        StatusContacted: {StatusQualified, StatusLost},
-        StatusQualified: {StatusLost},
-        StatusLost:      {},           // estado final
-    }
-    for _, allowed := range transitions[s] {
-        if allowed == next {
-            return true
-        }
-    }
-    return false
-}
-```
-
-```mermaid
-stateDiagram-v2
-    [*] --> new
-    new --> contacted : CanTransitionTo ✅
-    new --> lost : CanTransitionTo ✅
-    contacted --> qualified : CanTransitionTo ✅
-    contacted --> lost : CanTransitionTo ✅
-    qualified --> lost : CanTransitionTo ✅
-    lost --> [*]
-    new --> qualified : ❌ inválido
-    qualified --> new : ❌ inválido
-```
-
-</details>
-
----
-
-### Goroutines e Channels — o Event Bus
-
-<details>
-<summary><strong>Ver: Como funciona o Event Bus</strong></summary>
-
-```go
-// O Bus tem um channel com buffer — o publisher não bloqueia
-type Bus struct {
-    ch       chan Event  // channel com buffer de 500
-    handlers map[EventType][]Handler
-}
-
-// Publish — envia para o channel sem bloquear
-func (b *Bus) Publish(event Event) {
-    select {
-    case b.ch <- event:   // envia se houver espaço
-    default:              // descarta se o channel estiver cheio
-        b.logger.Warn("event bus full, dropping event")
-    }
-}
-
-// Start — lança uma goroutine que processa eventos em background
-func (b *Bus) Start(ctx context.Context) {
-    go func() {          // "go" lança a goroutine
-        for {
-            select {
-            case event := <-b.ch:   // recebe do channel
-                b.dispatch(ctx, event)
-            case <-ctx.Done():      // termina quando o contexto é cancelado
-                return
-            }
-        }
-    }()
-}
-```
-
-```mermaid
-sequenceDiagram
-    participant API as API Handler
-    participant Bus as Event Bus (channel)
-    participant W as Worker (goroutine)
-    participant H as Handlers
-
-    API->>Bus: Publish(ContactCreated)
-    Note over API,Bus: não bloqueia — channel tem buffer
-    Bus-->>API: ok, imediato
-
-    W->>Bus: recebe evento do channel
-    Bus-->>W: Event{ContactCreated, payload}
-    W->>H: dispatch para handlers registados
-    H-->>W: ActivityLogger, EmailNotifier, ...
+// Esta linha faz o compilador verificar que postgresRepository
+// implementa contact.Repository — erro imediato se falhar
+var _ Repository = (*postgresRepository)(nil)
 ```
 
 > [!TIP]
-> A goroutine vive enquanto o contexto (`ctx`) estiver ativo. Quando a app faz shutdown, `cancel()` é chamado e `ctx.Done()` fecha a goroutine de forma limpa — sem goroutine leaks.
+> É um padrão Go idiomático. Sem isto, só descobres que a interface não está implementada quando tentas usar o tipo — potencialmente em runtime.
+
+---
+
+### Paginação com Filters
+
+<details>
+<summary><strong>Ver: QueryString → Filters → SQL</strong></summary>
+
+```
+GET /api/v1/contacts?search=João&company=Acme&page=2&limit=10&sort_by=name&sort_dir=asc
+```
+
+```go
+// Handler lê os query params
+filters := Filters{
+    Search:  c.Query("search"),   // "João"
+    Company: c.Query("company"),  // "Acme"
+    Page:    c.QueryInt("page", 1),
+    Limit:   c.QueryInt("limit", 20),
+}
+
+// Repository gera a query
+query.Where("name ILIKE ? OR email ILIKE ?", "%João%", "%João%").
+      Where("company ILIKE ?", "%Acme%").
+      Order("name asc").
+      Limit(10).
+      Offset(10) // (page-1) * limit
+```
+
+**Response envelope:**
+```json
+{
+  "data":  [...],
+  "total": 47,
+  "page":  2,
+  "limit": 10
+}
+```
 
 </details>
 
 ---
 
-### Receivers: valor vs ponteiro
+### Migrations Versionadas
 
-```go
-// Receiver de VALOR — não modifica a struct, trabalha numa cópia
-func (t Task) IsOverdue() bool {
-    if t.DueDate == nil { return false }
-    return time.Now().After(*t.DueDate)
-}
+<details>
+<summary><strong>Ver: estrutura de migrations</strong></summary>
 
-// Receiver de PONTEIRO — quando o método modifica a struct
-// (veremos isto nos services do Módulo 03+)
-func (f *Filters) SetDefaults() {
-    if f.Page <= 0 { f.Page = 1 }  // modifica o original via ponteiro
-}
+```
+migrations/
+├── 001_create_users.up.sql      ← aplica
+├── 001_create_users.down.sql    ← reverte
+├── 002_create_contacts.up.sql
+└── 002_create_contacts.down.sql
+```
+
+```sql
+-- 002_create_contacts.up.sql
+CREATE TABLE contacts (
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name       VARCHAR(100) NOT NULL,
+    email      VARCHAR(255) NOT NULL,
+    owner_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Índices para pesquisa ILIKE eficiente
+CREATE INDEX idx_contacts_name_search ON contacts USING gin(name gin_trgm_ops);
 ```
 
 > [!NOTE]
-> Regra prática: usa receiver de **ponteiro** se o método modifica a struct ou se a struct é grande (evita cópia). Usa receiver de **valor** para operações de leitura em structs pequenas.
-
----
-
-## 🧪 Testes neste módulo
-
-```bash
-go test -v ./tests/unit/...
-```
-
-<details>
-<summary><strong>Ver: Exemplo de table-driven test</strong></summary>
-
-```go
-func TestLeadStatus_CanTransitionTo(t *testing.T) {
-    t.Parallel()
-
-    tests := []struct {
-        name     string
-        from     lead.Status
-        to       lead.Status
-        expected bool
-    }{
-        {"new can go to contacted",        lead.StatusNew,       lead.StatusContacted, true},
-        {"new cannot skip to qualified",   lead.StatusNew,       lead.StatusQualified, false},
-        {"lost is a final state",          lead.StatusLost,      lead.StatusNew,       false},
-        // adicionar mais casos sem escrever mais código de setup
-    }
-
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            t.Parallel()  // cada sub-teste corre em paralelo
-            got := tt.from.CanTransitionTo(tt.to)
-            if got != tt.expected {
-                t.Errorf("got %v, want %v", got, tt.expected)
-            }
-        })
-    }
-}
-```
+> O índice `gin_trgm_ops` usa trigrams para tornar o `ILIKE '%texto%'` eficiente. Sem ele, o PostgreSQL faz full table scan — lento em tabelas grandes.
 
 </details>
 
@@ -307,35 +208,48 @@ func TestLeadStatus_CanTransitionTo(t *testing.T) {
 
 ```
 Criados:
-├── internal/contact/model.go        ← Contact struct + Repository interface + Filters
-├── internal/lead/model.go           ← Lead struct + Status + transições de estado
-├── internal/deal/model.go           ← Deal struct + Stage + pipeline de vendas
-├── internal/task/model.go           ← Task struct + Priority + IsOverdue()
-├── internal/user/model.go           ← User struct + Role
-├── internal/shared/events/events.go ← Event Bus: channel + goroutine worker
-├── tests/unit/lead_model_test.go    ← Table-driven tests para Lead.Status
-└── tests/unit/task_model_test.go    ← Table-driven tests para Task.IsOverdue
+├── internal/contact/
+│   ├── repository_pg.go   ← implementação PostgreSQL da contact.Repository
+│   ├── service.go         ← CreateContactDTO, lógica de negócio, eventos
+│   └── handler.go         ← HTTP handlers + RegisterRoutes
+├── pkg/database/
+│   └── postgres.go        ← conexão GORM + connection pool
+├── migrations/
+│   ├── 001_create_users.up.sql / .down.sql
+│   └── 002_create_contacts.up.sql / .down.sql
+└── docker-compose.yml     ← PostgreSQL local (MongoDB e Redis comentados)
 
 Modificados:
-└── cmd/api/main.go                  ← Integra Event Bus + graceful shutdown
+└── cmd/api/main.go        ← liga DB + regista rotas de contactos
 ```
 
 </details>
 
 ---
 
-## 🔄 O que vem a seguir
-
-> [!TIP]
-> No **Módulo 03**, cada `Repository interface` que definiste aqui vai ganhar uma implementação real em PostgreSQL. O padrão que estabeleceste agora é o que torna tudo trocável — mocks nos testes, PostgreSQL em produção, a mesma interface.
+## 🔄 Fluxo de um Request
 
 ```mermaid
-flowchart LR
-    M02["✅ M02\nInterfaces definidas\nModels criados"]
-    M03["M03 — SQL\nImplementar as interfaces\ncom GORM + PostgreSQL"]
-    M02 -->|"contact.Repository\n→ PostgreSQLRepo"| M03
-    style M02 fill:#22c55e,color:#fff
-    style M03 fill:#e5e7eb
+sequenceDiagram
+    actor Client
+    participant H as ContactHandler
+    participant S as ContactService
+    participant R as postgresRepository
+    participant DB as PostgreSQL
+
+    Client->>H: POST /api/v1/contacts {name, email}
+    H->>H: BodyParser + validação básica
+    H->>S: Create(ownerID, dto)
+    S->>R: FindByEmail(email)
+    R->>DB: SELECT WHERE email = ?
+    DB-->>R: not found
+    S->>R: Save(contact)
+    R->>DB: INSERT INTO contacts ...
+    DB-->>R: contact com ID + timestamps
+    R-->>S: *Contact
+    S->>S: Publish(ContactCreated event)
+    S-->>H: *Contact
+    H-->>Client: 201 Created {contact}
 ```
 
 ---
@@ -344,26 +258,26 @@ flowchart LR
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Adiciona um método `Contact.FullName()` que devolve nome + empresa
-- **Nível 2** — Adiciona validação de email com regex no model (sem bibliotecas externas)
-- **Nível 3** — Implementa um `MockContactRepository` que satisfaz a interface e escreve testes com ele
+- **Nível 1** — Adiciona endpoint `GET /api/v1/contacts/:id/tasks` que devolve as tasks de um contacto
+- **Nível 2** — Implementa soft delete (campo `deleted_at`) em vez de DELETE real
+- **Nível 3** — Adiciona uma transação: criar um Lead automaticamente quando um Contacto é criado
 
 ---
 
 ## ✅ Checklist antes de avançar
 
-- [ ] `go test ./tests/unit/...` passa sem erros
-- [ ] Entendes a diferença entre interface implícita Go vs `implements` Java/C#
-- [ ] Sabes quando usar `*T` vs `T` num struct field
-- [ ] Consegues explicar o que é um channel com buffer e porque não bloqueia
+- [ ] `docker-compose up -d postgres` e `make run` funcionam
+- [ ] CRUD de contactos testado com `curl` ou Postman
+- [ ] Entendes a diferença entre domain model e GORM record
+- [ ] Sabes o que é `var _ Repository = (*postgresRepository)(nil)` e porquê
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M01 — Setup](https://github.com/titi-byte-dev/gorm-crm/tree/branch-01-setup)** &nbsp;|&nbsp;
-`02 / 18` &nbsp;|&nbsp;
-**[M03 — SQL & PostgreSQL ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-03-sql)**
+**[⬅️ M02 — Fundamentos Go](https://github.com/titi-byte-dev/gorm-crm/tree/branch-02-go-fundamentos)** &nbsp;|&nbsp;
+`03 / 18` &nbsp;|&nbsp;
+**[M04 — Git Workflow ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-04-git-workflow)**
 
 </div>

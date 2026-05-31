@@ -3,6 +3,7 @@ package deal
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/titi-byte-dev/gorm-crm/internal/shared/ctxutil"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/response"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/validate"
 )
@@ -20,7 +21,10 @@ func RegisterRoutes(router fiber.Router, svc *Service) {
 }
 
 func (h *Handler) Create(c *fiber.Ctx) error {
-	ownerID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	ownerID, err := ctxutil.OwnerID(c)
+	if err != nil {
+		return err
+	}
 	var dto CreateDealDTO
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
@@ -36,10 +40,15 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 }
 
 func (h *Handler) List(c *fiber.Ctx) error {
-	ownerID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	ownerID, err := ctxutil.OwnerID(c)
+	if err != nil {
+		return err
+	}
 	filters := Filters{
-		Page: c.QueryInt("page", 1), Limit: c.QueryInt("limit", 20),
-		SortBy: c.Query("sort_by", "created_at"), SortDir: c.Query("sort_dir", "desc"),
+		Page:    c.QueryInt("page", 1),
+		Limit:   c.QueryInt("limit", 20),
+		SortBy:  c.Query("sort_by", "created_at"),
+		SortDir: c.Query("sort_dir", "desc"),
 	}
 	if s := c.Query("stage"); s != "" {
 		filters.Stage = Stage(s)

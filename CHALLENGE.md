@@ -1,66 +1,60 @@
-# 🎯 CHALLENGE — Módulo 05: REST API Completa
+# 🎯 CHALLENGE — Módulo 06: Autenticação & Autorização
 
 ---
 
-### Nível 1 — Obrigatório
+### Nível 1 — Segurança observável
 
-**`GET /api/v1/contacts/:id/leads`**
+**Testa user enumeration protection**
 
-Lista todos os leads de um contacto específico. Usa `lead.Repository.FindByContact()`.
-
+Faz dois pedidos:
 ```bash
-curl http://localhost:8080/api/v1/contacts/<contact-id>/leads
-# → [{ lead1 }, { lead2 }, ...]
+# Email que não existe
+curl -X POST /api/v1/auth/login -d '{"email":"nao-existe@x.com","password":"qualquer"}'
+
+# Email que existe, password errada
+curl -X POST /api/v1/auth/login -d '{"email":"ana@empresa.com","password":"errada"}'
 ```
+
+As respostas devem ser **idênticas** — mesmo status, mesmo body. Se forem diferentes, a API revela quais emails existem.
 
 ---
 
 ### Nível 2 — Exploração
 
-**`GET /api/v1/pipeline`**
+**`PATCH /api/v1/auth/password`** — alterar password
 
-Devolve um resumo do pipeline de vendas:
-
+Requer token válido. Input:
 ```json
-{
-  "proposal":    { "count": 5, "total_value": 25000 },
-  "negotiation": { "count": 3, "total_value": 18000 },
-  "won":         { "count": 12, "total_value": 67000 },
-  "lost":        { "count": 4, "total_value": 9000 }
-}
+{ "current_password": "...", "new_password": "..." }
 ```
 
-Dica: usa `db.Model(&dealRecord{}).Select("stage, count(*), sum(value)").Group("stage").Find(&result)`
+Lógica:
+1. Extrair userID do token
+2. Ir ao DB buscar o user
+3. Verificar `current_password` com `CheckPassword`
+4. Fazer hash da `new_password` e guardar
 
 ---
 
-### Nível 3 — Rate Limiting
+### Nível 3 — RBAC em prática
 
-Adiciona um middleware de rate limiting: máximo 100 requests por minuto por IP.
+Adiciona um endpoint `GET /api/v1/admin/users` que lista todos os utilizadores.
+Protege-o com `RequireRole(user.RoleAdmin)`.
 
-Fiber tem `middleware/limiter` built-in:
-
-```go
-app.Use(limiter.New(limiter.Config{
-    Max:        100,
-    Expiration: 1 * time.Minute,
-}))
-```
-
-Testa com um loop:
+Testa:
 ```bash
-for i in {1..110}; do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/health; done
-# Deve ver 200 nos primeiros 100 e 429 nos seguintes
+# Com token de seller → 403 Forbidden
+# Com token de admin  → 200 OK com lista de users
 ```
 
 ---
 
 ## Perguntas de reflexão
 
-1. Porque é que `PATCH /leads/:id/status` é melhor que `PUT /leads/:id` para mudar estado?
-2. O que é idempotência numa API REST? Quais dos teus endpoints são idempotentes?
-3. Qual a diferença entre `400 Bad Request` e `422 Unprocessable Entity`?
+1. O JWT expira mas o utilizador continua com o token — quando é que isso é um problema real?
+2. O que é um "token blacklist" e quando precisarias de um?
+3. Qual a diferença entre `401 Unauthorized` e `403 Forbidden`?
 
 ---
 
-> Módulo seguinte: [branch-06-auth](https://github.com/titi-byte-dev/gorm-crm/tree/branch-06-auth) — JWT, bcrypt, refresh tokens e RBAC
+> Módulo seguinte: [branch-07-mvc-layers](https://github.com/titi-byte-dev/gorm-crm/tree/branch-07-mvc-layers) — Separação em camadas, interfaces e injeção de dependências

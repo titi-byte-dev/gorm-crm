@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/titi-byte-dev/gorm-crm/internal/activitylog"
 	"github.com/titi-byte-dev/gorm-crm/internal/auth"
 	"github.com/titi-byte-dev/gorm-crm/internal/contact"
 	"github.com/titi-byte-dev/gorm-crm/internal/deal"
@@ -20,6 +22,7 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/internal/user"
 	"github.com/titi-byte-dev/gorm-crm/pkg/database"
 	"github.com/titi-byte-dev/gorm-crm/pkg/logger"
+	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/gorm"
 )
 
@@ -43,8 +46,19 @@ func main() {
 	defer cancel()
 	bus.Start(ctx)
 
+	// MongoDB — opcional: a app funciona sem Mongo (logs descartados silenciosamente)
+	var mongoDB *mongo.Database
+	mongoDB, err = database.NewMongo(database.MongoConfigFromEnv())
+	if err != nil {
+		log.Warn("mongodb unavailable — activity logging disabled", "error", err)
+	} else {
+		log.Info("mongodb connected")
+		actSvc := activitylog.NewService(activitylog.NewMongoRepository(mongoDB), log)
+		actSvc.RegisterHandlers(bus) // subscreve eventos no bus
+	}
+
 	app := fiber.New(fiber.Config{
-		AppName:      "GoRM CRM v0.7.0",
+		AppName:      "GoRM CRM v0.9.0",
 		ErrorHandler: sharederrors.Handler,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -54,7 +68,7 @@ func main() {
 	app.Use(middleware.Logger())
 	app.Use(middleware.CORS())
 
-	registerRoutes(app, db, bus)
+	registerRoutes(app, db, mongoDB, bus, log)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -79,13 +93,16 @@ func main() {
 	}
 }
 
-func registerRoutes(app *fiber.App, db *gorm.DB, bus *events.Bus) {
+func registerRoutes(app *fiber.App, db *gorm.DB, mongoDB *mongo.Database, bus *events.Bus, log *slog.Logger) {
 	app.Get("/health", func(c *fiber.Ctx) error {
-		// Verifica a ligação ao DB — healthcheck real, não só "processo a correr"
 		sqlDB, err := db.DB()
 		dbStatus := "ok"
 		if err != nil || sqlDB.Ping() != nil {
 			dbStatus = "degraded"
+		}
+		mongoStatus := "disabled"
+		if mongoDB != nil {
+			mongoStatus = "ok"
 		}
 		status := "ok"
 		httpStatus := fiber.StatusOK
@@ -96,25 +113,28 @@ func registerRoutes(app *fiber.App, db *gorm.DB, bus *events.Bus) {
 		return c.Status(httpStatus).JSON(fiber.Map{
 			"status":  status,
 			"service": "gorm-crm",
-			"version": "0.8.0",
+			"version": "0.9.0",
 			"checks": fiber.Map{
 				"database": dbStatus,
+				"mongodb":  mongoStatus,
 			},
 		})
 	})
 
 	v1 := app.Group("/api/v1")
 
-	// Auth — rotas públicas (não requerem token)
 	authSvc := auth.NewService(user.NewPostgresRepository(db))
 	auth.RegisterRoutes(v1, authSvc)
 
-	// Rotas protegidas — requerem JWT válido
-	// auth.Protected() injeta userID e role no contexto de cada request
 	protected := v1.Use(auth.Protected())
 
 	contact.RegisterRoutes(protected, contact.NewService(contact.NewPostgresRepository(db), bus))
 	lead.RegisterRoutes(protected, lead.NewService(lead.NewPostgresRepository(db), bus))
 	deal.RegisterRoutes(protected, deal.NewService(deal.NewPostgresRepository(db), bus))
 	task.RegisterRoutes(protected, task.NewService(task.NewPostgresRepository(db), bus))
+
+	if mongoDB != nil {
+		actSvc := activitylog.NewService(activitylog.NewMongoRepository(mongoDB), log)
+		activitylog.RegisterRoutes(protected, actSvc)
+	}
 }

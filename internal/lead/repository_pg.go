@@ -52,7 +52,7 @@ func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) ([]*Lea
 	query.Count(&total)
 	var recs []leadRecord
 	err := query.Order(filters.SortBy + " " + filters.SortDir).
-		Limit(filters.Limit).Offset((filters.Page - 1) * filters.Limit).
+		Limit(filters.Limit).Offset(filters.Offset()).
 		Find(&recs).Error
 	if err != nil {
 		return nil, 0, fmt.Errorf("list leads: %w", err)

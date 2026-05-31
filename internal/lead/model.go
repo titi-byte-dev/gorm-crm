@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/titi-byte-dev/gorm-crm/pkg/pagination"
 )
 
 // Status representa o estado de um lead no pipeline.
@@ -64,25 +65,12 @@ type Repository interface {
 }
 
 // Filters encapsula os parâmetros de pesquisa para leads.
+// Embebe pagination.Base para herdar Page, Limit, SortBy, SortDir, Offset().
 type Filters struct {
-	Status  Status
-	Page    int
-	Limit   int
-	SortBy  string
-	SortDir string
+	pagination.Base
+	Status Status
 }
 
 func (f *Filters) SetDefaults() {
-	if f.Page <= 0 {
-		f.Page = 1
-	}
-	if f.Limit <= 0 || f.Limit > 100 {
-		f.Limit = 20
-	}
-	if f.SortBy == "" {
-		f.SortBy = "created_at"
-	}
-	if f.SortDir == "" {
-		f.SortDir = "desc"
-	}
+	f.Normalize("created_at")
 }

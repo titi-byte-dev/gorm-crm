@@ -62,7 +62,7 @@ func (r *postgresRepository) FindAll(assignedTo uuid.UUID, filters Filters) ([]*
 	var total int64
 	query.Count(&total)
 	var recs []taskRecord
-	if err := query.Limit(filters.Limit).Offset((filters.Page-1)*filters.Limit).Find(&recs).Error; err != nil {
+	if err := query.Order(filters.SortBy+" "+filters.SortDir).Limit(filters.Limit).Offset(filters.Offset()).Find(&recs).Error; err != nil {
 		return nil, 0, fmt.Errorf("list tasks: %w", err)
 	}
 	tasks := make([]*Task, len(recs))

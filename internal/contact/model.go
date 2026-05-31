@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/titi-byte-dev/gorm-crm/pkg/pagination"
 )
 
 // Contact representa um contacto no CRM.
@@ -30,33 +31,15 @@ type Repository interface {
 	Delete(id uuid.UUID) error
 }
 
-// Filters encapsula os parâmetros de pesquisa e paginação.
-// Usar uma struct em vez de parâmetros avulsos torna a assinatura estável
-// — adicionar um novo filtro não quebra os callers existentes.
+// Filters encapsula os parâmetros de pesquisa e paginação para contactos.
+// Embebe pagination.Base para herdar Page, Limit, SortBy, SortDir e os métodos
+// Normalize/Offset — composição em vez de duplicação.
 type Filters struct {
+	pagination.Base
 	Search  string
 	Company string
-	Page    int
-	Limit   int
-	SortBy  string
-	SortDir string
 }
 
 func (f *Filters) SetDefaults() {
-	if f.Page <= 0 {
-		f.Page = 1
-	}
-	if f.Limit <= 0 || f.Limit > 100 {
-		f.Limit = 20
-	}
-	if f.SortBy == "" {
-		f.SortBy = "created_at"
-	}
-	if f.SortDir == "" {
-		f.SortDir = "desc"
-	}
-}
-
-func (f *Filters) Offset() int {
-	return (f.Page - 1) * f.Limit
+	f.Normalize("created_at")
 }

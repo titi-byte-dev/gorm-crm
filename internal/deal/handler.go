@@ -6,6 +6,7 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/ctxutil"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/response"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/validate"
+	"github.com/titi-byte-dev/gorm-crm/pkg/pagination"
 )
 
 type Handler struct{ svc *Service }
@@ -45,10 +46,12 @@ func (h *Handler) List(c *fiber.Ctx) error {
 		return err
 	}
 	filters := Filters{
-		Page:    c.QueryInt("page", 1),
-		Limit:   c.QueryInt("limit", 20),
-		SortBy:  c.Query("sort_by", "created_at"),
-		SortDir: c.Query("sort_dir", "desc"),
+		Base: pagination.Base{
+			Page:    c.QueryInt("page", 1),
+			Limit:   c.QueryInt("limit", 20),
+			SortBy:  c.Query("sort_by", "created_at"),
+			SortDir: c.Query("sort_dir", "desc"),
+		},
 	}
 	if s := c.Query("stage"); s != "" {
 		filters.Stage = Stage(s)

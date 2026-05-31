@@ -1,23 +1,23 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M09 — NoSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)** &nbsp;|&nbsp;
-`branch-10-clean-code` &nbsp;|&nbsp;
-**[M11 — OOP Avançado ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)**
+**[⬅️ M13 — Object Calisthenics](https://github.com/titi-byte-dev/gorm-crm/tree/branch-13-calisthenics)** &nbsp;|&nbsp;
+`branch-14-tests` &nbsp;|&nbsp;
+**[M15 — Design Patterns ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-15-patterns)**
 
-`██████████░░░░░░░░░░` Módulo **10 / 18** — Nível 🔵 Pleno
+`██████████████░░░░░░` Módulo **14 / 18** — Nível 🔵 Pleno
 
 </div>
 
 ---
 
-# ✨ Módulo 10 — Clean Code Principles
+# 🧪 Módulo 14 — Testes Automatizados em Go
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![Módulo](https://img.shields.io/badge/Módulo-10%20%2F%2018-blue)](.)
+[![Módulo](https://img.shields.io/badge/Módulo-14%20%2F%2018-blue)](.)
 
-> **O que foi construído:** Nenhuma feature nova. Zero comportamento alterado. O código ficou mais claro, mais seguro em compile-time e mais fácil de manter — aplicando 6 princípios Clean Code a smells reais encontrados no GoRM.
+> **O que foi construído:** Três camadas de testes — unit, integration com testcontainers, e2e com fiber.Test() — cobrindo os domínios contact, lead e deal.
 
 ---
 
@@ -25,64 +25,187 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Identificar números mágicos e substituí-los por constantes nomeadas
-- [ ] Distinguir comentários úteis (o PORQUÊ) dos redundantes (o QUÊ)
-- [ ] Usar tipos fortes em vez de strings para valores enumerados
-- [ ] Aplicar early return para reduzir nesting
-- [ ] Extrair funções pequenas com uma única responsabilidade
+- [ ] Escrever table-driven tests para múltiplos cenários sem repetição
+- [ ] Implementar mocks em memória que o compilador valida com `var _ Interface = (*Type)(nil)`
+- [ ] Usar testcontainers para testar repositórios contra PostgreSQL real
+- [ ] Testar handlers HTTP com `fiber.Test()` sem abrir portas de rede
+- [ ] Distinguir o que pertence a cada camada de teste
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-10-clean-code
+git checkout branch-14-tests
 
-# Vê o que mudou — cada commit é um princípio
-git log --oneline branch-09-nosql..branch-10-clean-code
+# Unit tests — sem dependências externas, < 5ms
+go test ./tests/unit/... -v
 
-# Compara um ficheiro antes e depois
-git diff branch-09-nosql..branch-10-clean-code -- internal/contact/service.go
+# Integration tests — requer Docker
+go test ./tests/integration/... -v
+
+# E2E tests — sem Docker, sem portas
+go test ./tests/e2e/... -v
+
+# Tudo junto com coverage
+go test ./tests/... -cover
 ```
 
 ---
 
-## 🗺️ Os 6 Princípios Aplicados
+## 🗺️ As Três Camadas
 
 ```mermaid
 flowchart TD
-    C1["1️⃣ Sem números mágicos\n90*24*3600 → logRetentionSecs\n500 → DefaultBufferSize"]
-    C2["2️⃣ Map > Switch crescente\nvalidação: switch → map\nOpen/Closed Principle"]
-    C3["3️⃣ Tipos fortes > strings\nEntityType em vez de 'contact'\nCompilador verifica"]
-    C4["4️⃣ Comentários = PORQUÊ\nRemover os que dizem O QUÊ\nManter os de decisão de design"]
-    C5["5️⃣ Early return\nconnectMongo extrai e usa return nil\nHappy path à esquerda"]
-    C6["6️⃣ Uma responsabilidade\napplyUpdates extraído de Update\nCada função faz uma coisa"]
+    A["🧪 Testes Automatizados"]
 
-    C1 --- C2 --- C3
-    C4 --- C5 --- C6
+    A --> U["Unit Tests\ntests/unit/\nMocks em memória\n< 5ms\nSem dependências"]
+    A --> I["Integration Tests\ntests/integration/\ntestcontainers + PostgreSQL real\nSQL e índices reais"]
+    A --> E["E2E Tests\ntests/e2e/\nfiber.Test()\nStack HTTP completa\nSem portas de rede"]
 ```
 
 ---
 
-## 🔍 Exemplo mais impactante — tipos fortes
+## 🔍 Unit Tests — Table-Driven
 
 > [!IMPORTANT]
-> Mudar `string` para `EntityType` parece cosmético mas tem consequências reais.
+> "Table-driven tests são o idioma Go para cobrir N cenários com um loop."
 
 ```go
-// ❌ Antes — typo passa no compilador, falha em runtime
-repo.FindByEntity("contcat", id, 50)  // silencioso, devolve vazio
+// ❌ Antes — um test por cenário, repetição de setup
+func TestLeadStatus_NewToContacted(t *testing.T) {
+    if !lead.StatusNew.CanTransitionTo(lead.StatusContacted) {
+        t.Error("should be valid")
+    }
+}
+func TestLeadStatus_NewToQualified(t *testing.T) { ... } // mais 7 funções
 
-// ✅ Depois — erro de compilação imediato
-repo.FindByEntity(EntityContcat, id, 50)
-// → undefined: EntityContcat  ← o compilador encontra antes de correr
+// ✅ Depois — uma tabela, um loop
+tests := []struct {
+    name     string
+    from, to lead.Status
+    expected bool
+}{
+    {"new → contacted", StatusNew, StatusContacted, true},
+    {"new → qualified: inválido", StatusNew, StatusQualified, false},
+    // ... mais casos numa linha cada
+}
+for _, tt := range tests {
+    t.Run(tt.name, func(t *testing.T) {
+        t.Parallel()
+        if got := tt.from.CanTransitionTo(tt.to); got != tt.expected { ... }
+    })
+}
+```
+
+**O que está coberto:**
+
+| Domínio | Testes | Foco |
+|---------|--------|------|
+| `contact` | Create, GetByID, Update, Delete | Regras de negócio e erros |
+| `lead` | Create, UpdateStatus (5 casos) | Máquina de estados |
+| `deal` | Create, MoveStage (5 casos), ClosedAt | Efeitos colaterais |
+
+---
+
+## 🔍 Mocks em Memória
+
+> [!NOTE]
+> "O mock está errado se o compilador não o diz — `var _` garante isso."
+
+```go
+// Compile-time assertion — falha no build, não em runtime
+var _ contact.Repository = (*contactRepoMem)(nil)
+
+type contactRepoMem struct {
+    data    map[uuid.UUID]*contact.Contact
+    byEmail map[string]*contact.Contact
+}
+
+// Se contact.Repository ganhar um novo método → erro de build imediato
+```
+
+**Por que mocks em vez de testify/mock?**
+
+Go tem o `testing` package na stdlib. Para interfaces simples, uma struct com um map é suficiente e não adiciona dependências.
+
+---
+
+## 🔍 Integration Tests — testcontainers
+
+> [!TIP]
+> "Se o repositório usa SQL, o teste tem de usar SQL."
+
+```go
+func newTestDB(t *testing.T) *gorm.DB {
+    ctr, _ := tcpostgres.Run(ctx,
+        "postgres:16-alpine",
+        tcpostgres.WithDatabase("testdb"),
+        tcpostgres.BasicWaitStrategies(),
+    )
+    t.Cleanup(func() { ctr.Terminate(ctx) })
+
+    dsn, _ := ctr.ConnectionString(ctx, "sslmode=disable")
+    db, _ := gorm.Open(postgres.Open(dsn), ...)
+    db.AutoMigrate(&contactRecord{})
+    return db
+}
+```
+
+**O que os testes de integração apanham que os mocks não apanham:**
+
+```
+✅ Índice único em email — constraint a nível de DB
+✅ Ordenação SQL — ORDER BY funciona como esperado
+✅ Paginação — LIMIT + OFFSET correcto
+✅ Conversões de tipo — uuid ↔ VARCHAR
 ```
 
 ---
 
-## 📖 Documento de referência
+## 🔍 E2E Tests — fiber.Test()
 
-Ver [`docs/clean-code-examples.md`](docs/clean-code-examples.md) — todos os 6 princípios com código real antes/depois, regra de aplicação e quando usar.
+> [!IMPORTANT]
+> "Testar o handler é testar o contrato HTTP — status codes, parsing, routing."
+
+```go
+func newTestApp(t *testing.T) (*fiber.App, uuid.UUID) {
+    ownerID := uuid.New()
+    svc := contact.NewService(newContactRepoForE2E(), events.New(10, log))
+
+    app := fiber.New(fiber.Config{ErrorHandler: sharederrors.Handler})
+
+    // Substitui JWT por middleware de teste — sem tokens, sem chaves
+    app.Use(func(c *fiber.Ctx) error {
+        c.Locals("userID", ownerID)
+        return c.Next()
+    })
+
+    contact.RegisterRoutes(app, svc)
+    return app, ownerID
+}
+```
+
+**Cenários cobertos:**
+
+| Endpoint | Status | O que valida |
+|----------|--------|--------------|
+| `POST /contacts` | 201 | Criação + body de resposta |
+| `POST /contacts` | 422 | Validação de campos obrigatórios |
+| `POST /contacts` | 409 | Email duplicado → ErrConflict |
+| `GET /contacts/:id` | 200 | Leitura por ID |
+| `GET /contacts/:id` | 404 | ID inexistente → ErrNotFound |
+| `DELETE /contacts/:id` | 204 | Remoção + verificação de ausência |
+
+---
+
+## 📊 Cobertura por Camada
+
+| Camada | O que testa | Velocidade | Requer Docker |
+|--------|-------------|-----------|---------------|
+| Unit | Lógica de domínio, regras de negócio | < 5ms | ❌ |
+| Integration | SQL, índices, paginação, tipos | ~3-5s | ✅ |
+| E2E | Status HTTP, parsing, routing, erros | < 200ms | ❌ |
 
 ---
 
@@ -90,26 +213,26 @@ Ver [`docs/clean-code-examples.md`](docs/clean-code-examples.md) — todos os 6 
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Encontra mais 2 números mágicos no codebase e substitui por constantes
-- **Nível 2** — Encontra um comentário que explica O QUÊ e tenta renomear o código para torná-lo desnecessário
-- **Nível 3** — Aplica early return a uma função no codebase que ainda usa if/else aninhado
+- **Nível 1** — Adiciona testes unitários para `task.Service` usando `SpyPublisher`
+- **Nível 2** — Adiciona integration tests para `lead.Repository`
+- **Nível 3** — Adiciona E2E tests para o lead pipeline (POST + PATCH status)
 
 ---
 
 ## ✅ Checklist antes de avançar
 
-- [ ] `git log --oneline branch-09-nosql..branch-10-clean-code` — leste todos os 7 commits?
-- [ ] Consegues explicar a diferença entre um comentário PORQUÊ e um comentário QUÊ?
-- [ ] Sabes porque `EntityType` é mais seguro que `string` para valores enumerados?
-- [ ] Leste `docs/clean-code-examples.md` com os antes/depois?
+- [ ] Consegues explicar a diferença entre os três tipos de teste neste módulo?
+- [ ] Sabes quando usar um mock em memória vs testcontainers?
+- [ ] Entendes por que `fiber.Test()` não precisa de portas de rede?
+- [ ] Consegues adicionar um novo caso a uma table-driven test sem copiar código?
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M09 — NoSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)** &nbsp;|&nbsp;
-`10 / 18` &nbsp;|&nbsp;
-**[M11 — OOP Avançado ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)**
+**[⬅️ M13 — Object Calisthenics](https://github.com/titi-byte-dev/gorm-crm/tree/branch-13-calisthenics)** &nbsp;|&nbsp;
+`14 / 18` &nbsp;|&nbsp;
+**[M15 — Design Patterns ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-15-patterns)**
 
 </div>

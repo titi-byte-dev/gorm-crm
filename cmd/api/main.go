@@ -41,20 +41,15 @@ func main() {
 	}
 	log.Info("database connected")
 
-	bus := events.New(500, log)
+	bus := events.New(events.DefaultBufferSize, log)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	bus.Start(ctx)
 
-	// MongoDB — opcional: a app funciona sem Mongo (logs descartados silenciosamente)
-	var mongoDB *mongo.Database
-	mongoDB, err = database.NewMongo(database.MongoConfigFromEnv())
-	if err != nil {
-		log.Warn("mongodb unavailable — activity logging disabled", "error", err)
-	} else {
-		log.Info("mongodb connected")
-		actSvc := activitylog.NewService(activitylog.NewMongoRepository(mongoDB), log)
-		actSvc.RegisterHandlers(bus) // subscreve eventos no bus
+	// MongoDB opcional — graceful degradation se não estiver disponível
+	mongoDB := connectMongo(log)
+	if mongoDB != nil {
+		activitylog.NewService(activitylog.NewMongoRepository(mongoDB), log).RegisterHandlers(bus)
 	}
 
 	app := fiber.New(fiber.Config{
@@ -91,6 +86,18 @@ func main() {
 		log.Error("server error", "error", err)
 		os.Exit(1)
 	}
+}
+
+// connectMongo tenta ligar ao MongoDB e devolve nil se falhar.
+// MongoDB é opcional — a app funciona sem logs de actividade.
+func connectMongo(log *slog.Logger) *mongo.Database {
+	db, err := database.NewMongo(database.MongoConfigFromEnv())
+	if err != nil {
+		log.Warn("mongodb unavailable — activity logging disabled", "error", err)
+		return nil
+	}
+	log.Info("mongodb connected")
+	return db
 }
 
 func registerRoutes(app *fiber.App, db *gorm.DB, mongoDB *mongo.Database, bus *events.Bus, log *slog.Logger) {

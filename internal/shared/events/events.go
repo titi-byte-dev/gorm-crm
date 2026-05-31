@@ -43,6 +43,10 @@ type Bus struct {
 	logger   *slog.Logger
 }
 
+// DefaultBufferSize é a capacidade do channel do bus em produção.
+// Suficiente para absorver picos sem bloquear os handlers HTTP.
+const DefaultBufferSize = 500
+
 // New cria um Bus com um channel com buffer de capacidade cap.
 // Um channel com buffer não bloqueia o publisher enquanto houver espaço.
 func New(cap int, logger *slog.Logger) *Bus {

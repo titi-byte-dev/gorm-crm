@@ -95,19 +95,25 @@ func (s *Service) Update(id uuid.UUID, dto UpdateTaskDTO) (*Task, error) {
 		return nil, fmt.Errorf("task is %s, cannot update: %w",
 			task.Status, sharederrors.ErrValidation)
 	}
+	applyUpdates(task, dto)
+	return s.repo.Update(task)
+}
+
+// applyUpdates aplica os campos opcionais do DTO à task.
+// Ponteiro nil significa "não alterar" — só actualiza campos enviados.
+func applyUpdates(t *Task, dto UpdateTaskDTO) {
 	if dto.Title != nil {
-		task.Title = *dto.Title
+		t.Title = *dto.Title
 	}
 	if dto.Description != nil {
-		task.Description = *dto.Description
+		t.Description = *dto.Description
 	}
 	if dto.Priority != nil {
-		task.Priority = *dto.Priority
+		t.Priority = *dto.Priority
 	}
 	if dto.Status != nil {
-		task.Status = *dto.Status
+		t.Status = *dto.Status
 	}
-	return s.repo.Update(task)
 }
 
 func (s *Service) Delete(id uuid.UUID) error {

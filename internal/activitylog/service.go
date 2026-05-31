@@ -8,8 +8,6 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 )
 
-// Service regista handlers no Event Bus e persiste os logs no MongoDB.
-// É o ponto de ligação entre o sistema de eventos (M02) e o MongoDB (M09).
 type Service struct {
 	repo   Repository
 	logger *slog.Logger
@@ -44,8 +42,8 @@ func (s *Service) RegisterHandlers(bus *events.Bus) {
 	}
 }
 
-// handleEvent é chamado pelo Event Bus para cada evento recebido.
-// Corre na goroutine do worker do bus — não bloqueia o handler HTTP.
+// handleEvent corre na goroutine do bus — o handler HTTP já respondeu ao utilizador.
+// Falha silenciosa intencional: logs são "best effort", não críticos para o negócio.
 func (s *Service) handleEvent(ctx context.Context, event events.Event) {
 	log := &Log{
 		Action:  string(event.Type),
@@ -64,7 +62,7 @@ func (s *Service) handleEvent(ctx context.Context, event events.Event) {
 	}
 }
 
-func (s *Service) GetByEntity(entityType, entityID string, limit int) ([]*Log, error) {
+func (s *Service) GetByEntity(entityType EntityType, entityID string, limit int) ([]*Log, error) {
 	logs, err := s.repo.FindByEntity(entityType, entityID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get activity logs: %w", err)
@@ -81,7 +79,7 @@ func (s *Service) GetByUser(userID string, limit int) ([]*Log, error) {
 }
 
 // entityFromEvent extrai o tipo e ID da entidade afectada pelo evento.
-func entityFromEvent(event events.Event) (entityType, entityID string) {
+func entityFromEvent(event events.Event) (entityType EntityType, entityID string) {
 	entityType = entityTypeFromEventType(event.Type)
 	// O payload é any — fazemos type assertion para extrair o ID
 	// Esta é a "taxa" pelo uso de interface{} — precisamos de lidar com cada tipo
@@ -96,17 +94,17 @@ func entityFromEvent(event events.Event) (entityType, entityID string) {
 	return entityType, entityID
 }
 
-func entityTypeFromEventType(et events.EventType) string {
+func entityTypeFromEventType(et events.EventType) EntityType {
 	switch et {
 	case events.ContactCreated, events.ContactUpdated, events.ContactDeleted:
-		return "contact"
+		return EntityContact
 	case events.LeadCreated, events.LeadConverted, events.LeadLost:
-		return "lead"
+		return EntityLead
 	case events.DealWon, events.DealLost:
-		return "deal"
+		return EntityDeal
 	case events.TaskOverdue:
-		return "task"
+		return EntityTask
 	default:
-		return "unknown"
+		return EntityUnknown
 	}
 }

@@ -25,8 +25,6 @@ type contactRecord struct {
 
 func (contactRecord) TableName() string { return "contacts" }
 
-// postgresRepository implementa contact.Repository com PostgreSQL + GORM.
-// Em compile-time garantimos que implementa a interface:
 var _ Repository = (*postgresRepository)(nil)
 
 type postgresRepository struct {
@@ -129,8 +127,6 @@ func (r *postgresRepository) Delete(id uuid.UUID) error {
 	}
 	return nil
 }
-
-// --- mapeamento entre domain model e record GORM ---
 
 func recordToContact(r contactRecord) *Contact {
 	return &Contact{

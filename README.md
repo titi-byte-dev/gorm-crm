@@ -1,23 +1,23 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M09 — NoSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)** &nbsp;|&nbsp;
-`branch-10-clean-code` &nbsp;|&nbsp;
-**[M11 — OOP Avançado ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)**
+**[⬅️ M14 — Testes Automatizados](https://github.com/titi-byte-dev/gorm-crm/tree/branch-14-tests)** &nbsp;|&nbsp;
+`branch-15-patterns` &nbsp;|&nbsp;
+**[M16 — Refactoring ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-16-refactoring)**
 
-`██████████░░░░░░░░░░` Módulo **10 / 18** — Nível 🔵 Pleno
+`███████████████░░░░░` Módulo **15 / 18** — Nível 🔵 Pleno
 
 </div>
 
 ---
 
-# ✨ Módulo 10 — Clean Code Principles
+# 🏗️ Módulo 15 — Design Patterns em Go
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![Módulo](https://img.shields.io/badge/Módulo-10%20%2F%2018-blue)](.)
+[![Módulo](https://img.shields.io/badge/Módulo-15%20%2F%2018-blue)](.)
 
-> **O que foi construído:** Nenhuma feature nova. Zero comportamento alterado. O código ficou mais claro, mais seguro em compile-time e mais fácil de manter — aplicando 6 princípios Clean Code a smells reais encontrados no GoRM.
+> **O que foi construído:** Três Design Patterns aplicados a problemas reais do GoRM — Strategy para lead scoring, Decorator para logging transparente, Chain of Responsibility para validação extensível.
 
 ---
 
@@ -25,64 +25,172 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Identificar números mágicos e substituí-los por constantes nomeadas
-- [ ] Distinguir comentários úteis (o PORQUÊ) dos redundantes (o QUÊ)
-- [ ] Usar tipos fortes em vez de strings para valores enumerados
-- [ ] Aplicar early return para reduzir nesting
-- [ ] Extrair funções pequenas com uma única responsabilidade
+- [ ] Aplicar Strategy para trocar algoritmos sem modificar o caller
+- [ ] Criar um Decorator que adiciona comportamento sem alterar a interface
+- [ ] Implementar Chain of Responsibility para validação extensível
+- [ ] Explicar como cada padrão aplica o Open/Closed Principle
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-10-clean-code
+git checkout branch-15-patterns
 
-# Vê o que mudou — cada commit é um princípio
-git log --oneline branch-09-nosql..branch-10-clean-code
+# Os 3 commits — cada um é um padrão
+git log --oneline branch-14-tests..branch-15-patterns
 
-# Compara um ficheiro antes e depois
-git diff branch-09-nosql..branch-10-clean-code -- internal/contact/service.go
+# Vê o Scorer
+git show HEAD~2 -- internal/lead/scorer.go
+
+# Vê o Decorator
+git show HEAD~1 -- pkg/decorator/contact_repo.go
+
+# Vê a Chain
+git show HEAD -- internal/contact/validation.go
 ```
 
 ---
 
-## 🗺️ Os 6 Princípios Aplicados
+## 🗺️ Os 3 Padrões
 
 ```mermaid
 flowchart TD
-    C1["1️⃣ Sem números mágicos\n90*24*3600 → logRetentionSecs\n500 → DefaultBufferSize"]
-    C2["2️⃣ Map > Switch crescente\nvalidação: switch → map\nOpen/Closed Principle"]
-    C3["3️⃣ Tipos fortes > strings\nEntityType em vez de 'contact'\nCompilador verifica"]
-    C4["4️⃣ Comentários = PORQUÊ\nRemover os que dizem O QUÊ\nManter os de decisão de design"]
-    C5["5️⃣ Early return\nconnectMongo extrai e usa return nil\nHappy path à esquerda"]
-    C6["6️⃣ Uma responsabilidade\napplyUpdates extraído de Update\nCada função faz uma coisa"]
+    A["🏗️ Design Patterns"]
 
-    C1 --- C2 --- C3
-    C4 --- C5 --- C6
+    A --> S["Strategy\ninternal/lead/scorer.go\nBasicScorer / WeightedScorer\nAlgoritmo intercambiável"]
+    A --> D["Decorator\npkg/decorator/contact_repo.go\nContactRepoLogger\nLogging transparente"]
+    A --> C["Chain of Responsibility\ninternal/contact/validation.go\nUniqueEmailRule + EmailDomainRule\nValidação extensível"]
 ```
 
 ---
 
-## 🔍 Exemplo mais impactante — tipos fortes
+## 🔍 Strategy — lead.Scorer
 
 > [!IMPORTANT]
-> Mudar `string` para `EntityType` parece cosmético mas tem consequências reais.
+> "O Service não deve saber qual algoritmo de scoring usa — só que tem um."
 
 ```go
-// ❌ Antes — typo passa no compilador, falha em runtime
-repo.FindByEntity("contcat", id, 50)  // silencioso, devolve vazio
+// ❌ Antes — lógica de scoring inline no Service
+func (s *Service) Score(id uuid.UUID) int {
+    lead, _ := s.repo.FindByID(id)
+    if lead.Value > 10000 { return 80 }
+    if lead.Status == StatusQualified { return 60 }
+    return 20
+    // cada novo critério modifica este método
+}
 
-// ✅ Depois — erro de compilação imediato
-repo.FindByEntity(EntityContcat, id, 50)
-// → undefined: EntityContcat  ← o compilador encontra antes de correr
+// ✅ Depois — Strategy pattern
+type Scorer interface {
+    Score(lead *Lead) int
+}
+
+// BasicScorer, WeightedScorer — algoritmos separados, intercambiáveis
+svc := lead.NewService(repo, bus)                        // BasicScorer por omissão
+svc := lead.NewService(repo, bus, WeightedScorer{...})   // scorer injectado
+```
+
+**Por que variadic em vez de `*Scorer`?**
+
+```go
+// Ponteiro opcional → nil check em produção
+func NewService(repo Repository, bus *events.Bus, scorer *Scorer) *Service {
+    if scorer == nil { ... } // fácil esquecer
+}
+
+// Variadic → compilador garante que scorer nunca é nil
+func NewService(repo Repository, bus *events.Bus, scorer ...Scorer) *Service {
+    s.scorer = BasicScorer{}         // default
+    if len(scorer) > 0 { s.scorer = scorer[0] }
+}
 ```
 
 ---
 
-## 📖 Documento de referência
+## 🔍 Decorator — ContactRepoLogger
 
-Ver [`docs/clean-code-examples.md`](docs/clean-code-examples.md) — todos os 6 princípios com código real antes/depois, regra de aplicação e quando usar.
+> [!NOTE]
+> "Adicionar logging sem tocar na implementação — e sem que o caller saiba."
+
+```go
+// Decorator envolve qualquer contact.Repository
+type ContactRepoLogger struct {
+    inner  contact.Repository  // pode ser postgres, mock, ou outro decorator
+    logger *slog.Logger
+}
+
+// Cada método: log → delega → log resultado
+func (d *ContactRepoLogger) Save(c *contact.Contact) (*contact.Contact, error) {
+    start := time.Now()
+    result, err := d.inner.Save(c)   // delega
+    d.log("Save", time.Since(start), err)
+    return result, err
+}
+
+// NewContactRepoLogger devolve contact.Repository — não o tipo concreto
+// O caller só vê a interface
+func NewContactRepoLogger(inner contact.Repository, logger *slog.Logger) contact.Repository
+```
+
+**Composição em cadeia:**
+
+```go
+// Decorators são composíveis — sem modificar nenhum dos componentes
+repo := decorator.NewContactRepoLogger(
+    decorator.NewCachingContactRepo(postgresRepo, cache),
+    logger,
+)
+```
+
+---
+
+## 🔍 Chain of Responsibility — contact.Chain
+
+> [!TIP]
+> "Cada regra decide se passa ou interrompe. O Service não sabe quais existem."
+
+```go
+// ❌ Antes — validação inline, crescia com o Service
+func (s *Service) Create(...) {
+    existing, _ := s.repo.FindByEmail(dto.Email)
+    if existing != nil { return ErrConflict }
+    // próxima regra: mais um if aqui
+    // próxima regra: mais um if aqui
+}
+
+// ✅ Depois — cada regra é uma struct, chain executa em sequência
+type Rule interface {
+    Validate(repo Reader, dto CreateContactDTO) error
+}
+type Chain []Rule
+
+// DefaultChain — regras padrão
+UniqueEmailRule{}  // email único
+EmailDomainRule{}  // bloqueia mailinator, guerrillamail, etc.
+
+// Chain personalizada — sem modificar o Service
+svc := contact.NewService(repo, bus, UniqueEmailRule{}, MyCustomRule{})
+```
+
+**Interface segregation aplicado:**
+
+```go
+// Reader: só o que as regras precisam
+type Reader interface {
+    FindByEmail(email string) (*Contact, error)
+}
+// As regras não têm acesso a Save/Update/Delete — princípio mínimo
+```
+
+---
+
+## 📊 Comparação dos 3 Padrões
+
+| Padrão | Problema | Solução | Onde |
+|--------|----------|---------|------|
+| Strategy | Algoritmo que varia | Interface + structs intercambiáveis | `lead/scorer.go` |
+| Decorator | Comportamento transversal | Wrapper com mesma interface | `pkg/decorator/` |
+| Chain | Validação extensível | Lista de regras ordenadas | `contact/validation.go` |
 
 ---
 
@@ -90,26 +198,26 @@ Ver [`docs/clean-code-examples.md`](docs/clean-code-examples.md) — todos os 6 
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Encontra mais 2 números mágicos no codebase e substitui por constantes
-- **Nível 2** — Encontra um comentário que explica O QUÊ e tenta renomear o código para torná-lo desnecessário
-- **Nível 3** — Aplica early return a uma função no codebase que ainda usa if/else aninhado
+- **Nível 1** — Cria `DealScorer` com Strategy para pontuar deals pelo stage + valor
+- **Nível 2** — Cria `CachingContactRepo` decorator com `sync.Map` como cache de FindByID
+- **Nível 3** — Adiciona `MaxContactsPerOwnerRule` à chain (limite configurável por owner)
 
 ---
 
 ## ✅ Checklist antes de avançar
 
-- [ ] `git log --oneline branch-09-nosql..branch-10-clean-code` — leste todos os 7 commits?
-- [ ] Consegues explicar a diferença entre um comentário PORQUÊ e um comentário QUÊ?
-- [ ] Sabes porque `EntityType` é mais seguro que `string` para valores enumerados?
-- [ ] Leste `docs/clean-code-examples.md` com os antes/depois?
+- [ ] Consegues explicar quando usar Strategy vs Chain of Responsibility?
+- [ ] Sabes porque `NewContactRepoLogger` devolve a interface e não o tipo concreto?
+- [ ] Entendes como o Decorator aplica o Open/Closed Principle?
+- [ ] Consegues adicionar uma nova `Rule` sem tocar no `contact.Service`?
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M09 — NoSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)** &nbsp;|&nbsp;
-`10 / 18` &nbsp;|&nbsp;
-**[M11 — OOP Avançado ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)**
+**[⬅️ M14 — Testes Automatizados](https://github.com/titi-byte-dev/gorm-crm/tree/branch-14-tests)** &nbsp;|&nbsp;
+`15 / 18` &nbsp;|&nbsp;
+**[M16 — Refactoring ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-16-refactoring)**
 
 </div>

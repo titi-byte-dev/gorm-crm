@@ -1,23 +1,23 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M08 — Docker 🏆](https://github.com/titi-byte-dev/gorm-crm/tree/branch-08-docker)** &nbsp;|&nbsp;
-`branch-09-nosql` &nbsp;|&nbsp;
-**[M10 — Clean Code ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-10-clean-code)**
+**[⬅️ M09 — NoSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)** &nbsp;|&nbsp;
+`branch-10-clean-code` &nbsp;|&nbsp;
+**[M11 — OOP Avançado ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)**
 
-`█████████░░░░░░░░░░░` Módulo **09 / 18** — Nível 🔵 Pleno
+`██████████░░░░░░░░░░` Módulo **10 / 18** — Nível 🔵 Pleno
 
 </div>
 
 ---
 
-# 🍃 Módulo 09 — NoSQL & MongoDB
+# ✨ Módulo 10 — Clean Code Principles
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
-[![MongoDB](https://img.shields.io/badge/MongoDB-7-47A248?style=flat&logo=mongodb&logoColor=white)](.)
-[![Módulo](https://img.shields.io/badge/Módulo-09%20%2F%2018-blue)](.)
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Módulo](https://img.shields.io/badge/Módulo-10%20%2F%2018-blue)](.)
 
-> **O que foi construído:** Activity logs em MongoDB. Cada acção no CRM (criar contacto, ganhar deal, etc.) gera automaticamente um log persistido no MongoDB via Event Bus — sem alterar uma linha dos serviços existentes.
+> **O que foi construído:** Nenhuma feature nova. Zero comportamento alterado. O código ficou mais claro, mais seguro em compile-time e mais fácil de manter — aplicando 6 princípios Clean Code a smells reais encontrados no GoRM.
 
 ---
 
@@ -25,132 +25,64 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Explicar quando usar NoSQL vs SQL e porquê
-- [ ] Ligar uma app Go ao MongoDB com o driver oficial
-- [ ] Criar índices MongoDB incluindo TTL (expiração automática)
-- [ ] Implementar o padrão Observer com Event Bus e goroutines
-- [ ] Aplicar graceful degradation — funcionalidade secundária que falha sem quebrar o sistema
+- [ ] Identificar números mágicos e substituí-los por constantes nomeadas
+- [ ] Distinguir comentários úteis (o PORQUÊ) dos redundantes (o QUÊ)
+- [ ] Usar tipos fortes em vez de strings para valores enumerados
+- [ ] Aplicar early return para reduzir nesting
+- [ ] Extrair funções pequenas com uma única responsabilidade
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-09-nosql
-make docker/up   # inicia postgres + mongodb
+git checkout branch-10-clean-code
 
-# Login e cria um contacto
-TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@crm.com","password":"segredo123"}' | jq -r .access_token)
+# Vê o que mudou — cada commit é um princípio
+git log --oneline branch-09-nosql..branch-10-clean-code
 
-curl -X POST http://localhost:8080/api/v1/contacts \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"João Silva","email":"joao@x.com"}'
-
-# Ver os logs gerados automaticamente
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8080/api/v1/activity/me
+# Compara um ficheiro antes e depois
+git diff branch-09-nosql..branch-10-clean-code -- internal/contact/service.go
 ```
 
 ---
 
-## 🗺️ Como os logs chegam ao MongoDB
+## 🗺️ Os 6 Princípios Aplicados
 
 ```mermaid
-sequenceDiagram
-    actor User
-    participant API as ContactHandler
-    participant Svc as ContactService
-    participant Bus as Event Bus (goroutine)
-    participant Act as ActivityLog Service
-    participant Mongo as MongoDB
+flowchart TD
+    C1["1️⃣ Sem números mágicos\n90*24*3600 → logRetentionSecs\n500 → DefaultBufferSize"]
+    C2["2️⃣ Map > Switch crescente\nvalidação: switch → map\nOpen/Closed Principle"]
+    C3["3️⃣ Tipos fortes > strings\nEntityType em vez de 'contact'\nCompilador verifica"]
+    C4["4️⃣ Comentários = PORQUÊ\nRemover os que dizem O QUÊ\nManter os de decisão de design"]
+    C5["5️⃣ Early return\nconnectMongo extrai e usa return nil\nHappy path à esquerda"]
+    C6["6️⃣ Uma responsabilidade\napplyUpdates extraído de Update\nCada função faz uma coisa"]
 
-    User->>API: POST /contacts {name, email}
-    API->>Svc: Create(dto)
-    Svc->>Svc: salva no PostgreSQL
-    Svc->>Bus: Publish(ContactCreated)
-    Svc-->>API: contact criado
-    API-->>User: 201 Created
-
-    Note over Bus,Mongo: em background — utilizador já recebeu resposta
-
-    Bus->>Act: handleEvent(ContactCreated)
-    Act->>Mongo: InsertOne(activity_log)
-    Mongo-->>Act: ok
+    C1 --- C2 --- C3
+    C4 --- C5 --- C6
 ```
 
 ---
 
-## 🔍 Conceitos-Chave
+## 🔍 Exemplo mais impactante — tipos fortes
 
-### SQL vs NoSQL — quando usar cada um
-
-<details>
-<summary><strong>Ver: comparação com o caso real do GoRM</strong></summary>
-
-```
-PostgreSQL — dados relacionais do CRM:
-  ✅ Relações entre entidades (contact → lead → deal)
-  ✅ Transações ACID ("criar deal e actualizar lead atomicamente")
-  ✅ Queries complexas com JOINs
-  ✅ Integridade referencial (FK constraints)
-
-MongoDB — activity logs:
-  ✅ Schema flexível (cada evento tem payload diferente)
-  ✅ Alta taxa de writes (um log por acção)
-  ✅ Queries simples (find por user_id, find por entity_id)
-  ✅ TTL automático (logs expiram após 90 dias)
-  ❌ Sem JOINs — não serve para dados relacionais
-```
-
-</details>
-
----
-
-### TTL Index — expiração automática
-
-> [!TIP]
-> O MongoDB pode apagar documentos automaticamente com um TTL Index — sem cron jobs, sem código de limpeza.
+> [!IMPORTANT]
+> Mudar `string` para `EntityType` parece cosmético mas tem consequências reais.
 
 ```go
-// Criado uma vez no startup — apaga logs com mais de 90 dias
-options.Index().SetExpireAfterSeconds(90 * 24 * 3600)
+// ❌ Antes — typo passa no compilador, falha em runtime
+repo.FindByEntity("contcat", id, 50)  // silencioso, devolve vazio
+
+// ✅ Depois — erro de compilação imediato
+repo.FindByEntity(EntityContcat, id, 50)
+// → undefined: EntityContcat  ← o compilador encontra antes de correr
 ```
 
 ---
 
-### Graceful Degradation
+## 📖 Documento de referência
 
-> [!NOTE]
-> A app funciona sem MongoDB. Se o Mongo estiver em baixo, os logs são descartados silenciosamente — mas contactos, leads e deals continuam a funcionar.
-
-```go
-mongoDB, err = database.NewMongo(...)
-if err != nil {
-    log.Warn("mongodb unavailable — activity logging disabled")
-    // NÃO faz os.Exit(1)  ← funcionalidade secundária não é crítica
-}
-```
-
----
-
-## 📁 Ficheiros deste módulo
-
-```
-Criados:
-├── pkg/database/mongodb.go
-├── internal/activitylog/
-│   ├── model.go           ← Log struct com bson tags + Repository interface
-│   ├── repository_mongo.go← BSON, índices, TTL, sort por ObjectID
-│   ├── service.go         ← Observer: RegisterHandlers no Event Bus
-│   └── handler.go         ← GET /activity/me e /activity/:type/:id
-
-Modificados:
-├── docker-compose.yml     ← MongoDB descomentado
-└── cmd/api/main.go        ← MongoDB opcional + wiring
-```
+Ver [`docs/clean-code-examples.md`](docs/clean-code-examples.md) — todos os 6 princípios com código real antes/depois, regra de aplicação e quando usar.
 
 ---
 
@@ -158,26 +90,26 @@ Modificados:
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Cria um contacto e um deal, depois vê os logs em `/activity/me`
-- **Nível 2** — Implementa `GET /activity/contact/:id` usando o endpoint de entidade
-- **Nível 3** — Altera o TTL de 90 para 30 dias e verifica que o índice foi recriado
+- **Nível 1** — Encontra mais 2 números mágicos no codebase e substitui por constantes
+- **Nível 2** — Encontra um comentário que explica O QUÊ e tenta renomear o código para torná-lo desnecessário
+- **Nível 3** — Aplica early return a uma função no codebase que ainda usa if/else aninhado
 
 ---
 
 ## ✅ Checklist antes de avançar
 
-- [ ] `make docker/up` e a app mostra "mongodb connected" nos logs
-- [ ] Criaste um contacto e viste o log em `/activity/me`
-- [ ] Consegues explicar porquê MongoDB para logs e não PostgreSQL
-- [ ] Entendes graceful degradation — funcionalidade secundária que falha sem quebrar o sistema
+- [ ] `git log --oneline branch-09-nosql..branch-10-clean-code` — leste todos os 7 commits?
+- [ ] Consegues explicar a diferença entre um comentário PORQUÊ e um comentário QUÊ?
+- [ ] Sabes porque `EntityType` é mais seguro que `string` para valores enumerados?
+- [ ] Leste `docs/clean-code-examples.md` com os antes/depois?
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M08 — Docker 🏆](https://github.com/titi-byte-dev/gorm-crm/tree/branch-08-docker)** &nbsp;|&nbsp;
-`09 / 18` &nbsp;|&nbsp;
-**[M10 — Clean Code ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-10-clean-code)**
+**[⬅️ M09 — NoSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)** &nbsp;|&nbsp;
+`10 / 18` &nbsp;|&nbsp;
+**[M11 — OOP Avançado ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)**
 
 </div>

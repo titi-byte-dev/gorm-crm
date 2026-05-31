@@ -9,12 +9,14 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/titi-byte-dev/gorm-crm/internal/auth"
 	"github.com/titi-byte-dev/gorm-crm/internal/contact"
 	"github.com/titi-byte-dev/gorm-crm/internal/deal"
 	"github.com/titi-byte-dev/gorm-crm/internal/lead"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/middleware"
+	"github.com/titi-byte-dev/gorm-crm/internal/user"
 	"github.com/titi-byte-dev/gorm-crm/pkg/database"
 	"github.com/titi-byte-dev/gorm-crm/pkg/logger"
 	"gorm.io/gorm"
@@ -41,7 +43,7 @@ func main() {
 	bus.Start(ctx)
 
 	app := fiber.New(fiber.Config{
-		AppName:      "GoRM CRM v0.5.0",
+		AppName:      "GoRM CRM v0.6.0",
 		ErrorHandler: sharederrors.Handler,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -78,14 +80,20 @@ func main() {
 
 func registerRoutes(app *fiber.App, db *gorm.DB, bus *events.Bus) {
 	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok", "service": "gorm-crm", "version": "0.5.0"})
+		return c.JSON(fiber.Map{"status": "ok", "service": "gorm-crm", "version": "0.6.0"})
 	})
 
 	v1 := app.Group("/api/v1")
 
-	contact.RegisterRoutes(v1, contact.NewService(contact.NewPostgresRepository(db), bus))
-	lead.RegisterRoutes(v1, lead.NewService(lead.NewPostgresRepository(db), bus))
-	deal.RegisterRoutes(v1, deal.NewService(deal.NewPostgresRepository(db), bus))
-	// M06: auth.RegisterRoutes(v1, ...)
-	// M07: task.RegisterRoutes(v1, ...)
+	// Auth — rotas públicas (não requerem token)
+	authSvc := auth.NewService(user.NewPostgresRepository(db))
+	auth.RegisterRoutes(v1, authSvc)
+
+	// Rotas protegidas — requerem JWT válido
+	// auth.Protected() injeta userID e role no contexto de cada request
+	protected := v1.Use(auth.Protected())
+
+	contact.RegisterRoutes(protected, contact.NewService(contact.NewPostgresRepository(db), bus))
+	lead.RegisterRoutes(protected, lead.NewService(lead.NewPostgresRepository(db), bus))
+	deal.RegisterRoutes(protected, deal.NewService(deal.NewPostgresRepository(db), bus))
 }

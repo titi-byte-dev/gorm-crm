@@ -1,345 +1,369 @@
-# 🚀 GoRM — Um CRM construído em Go
+<!-- NAVIGATION BAR -->
+<div align="center">
 
-> **Curso de backend com didática de autoconstrução.**
-> Cada branch Git = 1 módulo de aprendizagem. Do zero ao deploy, do Júnior ao Sénior.
+**[⬅️ M01 — Setup](https://github.com/titi-byte-dev/gorm-crm/tree/branch-01-setup)** &nbsp;|&nbsp;
+`branch-02-go-fundamentos` &nbsp;|&nbsp;
+**[M03 — SQL & PostgreSQL ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-03-sql)**
 
+`██░░░░░░░░░░░░░░░░░░` Módulo **02 / 18** — Nível 🟢 Júnior
+
+</div>
+
+---
+
+# 🔤 Módulo 02 — Fundamentos Go
+
+[![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Modules](https://img.shields.io/badge/Módulos-18-blue)](docs/)
+[![Testes](https://img.shields.io/badge/testes-18%20passing-brightgreen)](tests/unit/)
+[![Módulo](https://img.shields.io/badge/Módulo-02%20%2F%2018-brightgreen)](.)
+
+> **O que foi construído:** Os domain models do GoRM CRM — as structs, interfaces e lógica de negócio que representam Contactos, Leads, Deals, Tasks e Utilizadores. O Event Bus em goroutines para comunicação assíncrona.
 
 ---
 
-## 📖 O que é este repositório?
+## 🎯 Objetivos de Aprendizagem
 
-**GoRM** é simultaneamente um **curso de backend em Go** e uma **aplicação CRM real e funcional**.
+Ao terminar este módulo consegues:
 
-A ideia é simples: **aprendes construindo**. Cada branch representa uma etapa de aprendizagem — fazes `git checkout` e estás imediatamente no contexto certo, com código funcional, documentação e desafios práticos.
-
-No final, tens um CRM completo deployado, testado e documentado.
+- [ ] Criar structs com tags JSON e perceber receivers de valor vs ponteiro
+- [ ] Definir e implementar interfaces implícitas (o idioma Go)
+- [ ] Usar tipos personalizados (`type Status string`) com métodos
+- [ ] Lançar goroutines e comunicar via channels
+- [ ] Escrever table-driven tests com `t.Parallel()`
+- [ ] Distinguir quando usar `*T` (ponteiro) vs `T` (valor)
 
 ---
 
-## 🗺️ Mapa do Curso
+## ⚡ Começa já
+
+```bash
+git checkout branch-02-go-fundamentos
+go test ./tests/unit/...
+make run
+```
+
+---
+
+## 🗺️ O que foi construído
 
 ```mermaid
 flowchart TD
-    START([🚀 START]) --> M01
-
-    subgraph JUNIOR["🟢 NÍVEL JÚNIOR"]
-        M01[📦 M01 · Setup and Estrutura Go]
-        M02[🔤 M02 · Fundamentos Go]
-        M03[🗄️ M03 · SQL e PostgreSQL]
-        M04[🌿 M04 · Git Workflow]
-        M05[🌐 M05 · REST API]
-        M06[🔐 M06 · Autenticacao e Auth]
-        M07[🏗️ M07 · Arquitetura MVC]
-        M08[🐳 M08 · Docker]
-        M01 --> M02 --> M03 --> M04 --> M05 --> M06 --> M07 --> M08
+    subgraph MODELS["Domain Models"]
+        U["user.User\nRole: admin·manager·seller"]
+        C["contact.Contact\nFilters + Pagination"]
+        L["lead.Lead\nStatus com transições válidas"]
+        D["deal.Deal\nStage com pipeline de vendas"]
+        T["task.Task\nPriority · IsOverdue()"]
     end
 
-    M08 --> JUNIOR_BADGE([🏆 Programador Junior])
-
-    subgraph PLENO["🔵 NÍVEL PLENO"]
-        M09[🍃 M09 · NoSQL e MongoDB]
-        M10[✨ M10 · Clean Code]
-        M11[🧩 M11 · OOP Avancado]
-        M12[🏛️ M12 · SOLID]
-        M13[🤸 M13 · Object Calisthenics]
-        M14[🧪 M14 · Testes Automatizados]
-        M15[🎨 M15 · Design Patterns]
-        M09 --> M10 --> M11 --> M12 --> M13 --> M14 --> M15
+    subgraph INTERFACES["Repository Interfaces"]
+        UR["user.Repository"]
+        CR["contact.Repository"]
+        LR["lead.Repository"]
+        DR["deal.Repository"]
+        TR["task.Repository"]
     end
 
-    JUNIOR_BADGE --> M09
-
-    subgraph SENIOR["🟣 NÍVEL SÉNIOR"]
-        M16[🔧 M16 · Refactoring]
-        M17[⚡ M17 · Performance e Cache]
-        M18[☁️ M18 · Cloud e CI/CD]
-        M16 --> M17 --> M18
+    subgraph BUS["Event Bus"]
+        EB["events.Bus\nchannel + goroutine worker"]
+        EV["EventTypes\ncontact.created · deal.won · ..."]
     end
 
-    M15 --> M16
-    M18 --> SENIOR_BADGE([🎓 Programador Senior])
+    U --> UR
+    C --> CR
+    L --> LR
+    D --> DR
+    T --> TR
+
+    EB --> EV
 ```
 
 ---
 
-## 🌿 Navegação por Branches
+## 🔍 Conceitos Go — Explicados com código real
 
-```bash
-git clone https://github.com/titi-byte-dev/gorm-crm.git
-cd gorm-crm
+### Structs e tags JSON
 
-# Navega para qualquer módulo
-git checkout branch-01-setup
-git checkout branch-05-rest-api
-git checkout branch-12-solid
+```go
+type Deal struct {
+    ID        uuid.UUID  `json:"id"`
+    LeadID    *uuid.UUID `json:"lead_id,omitempty"` // pointer = opcional
+    ClosedAt  *time.Time `json:"closed_at,omitempty"` // nil enquanto aberto
+    CreatedAt time.Time  `json:"created_at"`
+}
 ```
 
-| Branch | Módulo | Nível | Feature no GoRM |
-|--------|--------|-------|-----------------|
-| `branch-01-setup` | Setup e Estrutura | 🟢 Junior | Projeto inicializado, `GET /health` |
-| `branch-02-go-fundamentos` | Fundamentos Go | 🟢 Junior | Domain models definidos |
-| `branch-03-sql` | SQL e PostgreSQL | 🟢 Junior | CRUD de Contactos |
-| `branch-04-git-workflow` | Git Workflow | 🟢 Junior | Branching strategy |
-| `branch-05-rest-api` | REST API | 🟢 Junior | API REST completa |
-| `branch-06-auth` | Autenticacao | 🟢 Junior | JWT + RBAC |
-| `branch-07-mvc-layers` | Arquitetura MVC | 🟢 Junior | Camadas separadas |
-| `branch-08-docker` | Docker | 🟢 **→ Junior** | App containerizada |
-| `branch-09-nosql` | NoSQL e MongoDB | 🔵 Pleno | Activity logs |
-| `branch-10-clean-code` | Clean Code | 🔵 Pleno | Codebase refatorada |
-| `branch-11-oop` | OOP Avancado | 🔵 Pleno | Interfaces avancadas |
-| `branch-12-solid` | SOLID | 🔵 Pleno | SOLID aplicado |
-| `branch-13-calisthenics` | Object Calisthenics | 🔵 Pleno | Regras aplicadas |
-| `branch-14-testes` | Testes | 🔵 Pleno | Unit + Integration + E2E |
-| `branch-15-patterns` | Design Patterns | 🔵 Pleno | 10+ patterns aplicados |
-| `branch-16-refactoring` | Refactoring | 🟣 Senior | Tecnicas avancadas |
-| `branch-17-performance` | Performance e Cache | 🟣 Senior | Redis + Jobs async |
-| `branch-18-cloud-cicd` | Cloud e CI/CD | 🟣 **→ Senior** | Deploy + Pipeline |
+> [!NOTE]
+> `*uuid.UUID` (ponteiro) em vez de `uuid.UUID` (valor) significa que o campo pode ser `nil`. Usa-se quando o campo é opcional — evita o "zero value" enganoso (`uuid.Nil`). O `omitempty` na tag JSON omite o campo quando é `nil`.
 
 ---
 
-## 🏗️ Modelo de Dados
+### Interfaces implícitas — a superpotência de Go
 
-```mermaid
-erDiagram
-    USER {
-        uuid id
-        string name
-        string email
-        string password_hash
-        enum role
-        timestamp created_at
-    }
-    CONTACT {
-        uuid id
-        string name
-        string email
-        string phone
-        string company
-        uuid owner_id
-    }
-    LEAD {
-        uuid id
-        string title
-        decimal value
-        enum status
-        uuid contact_id
-        uuid owner_id
-    }
-    DEAL {
-        uuid id
-        string title
-        decimal value
-        enum stage
-        uuid lead_id
-        uuid contact_id
-    }
-    TASK {
-        uuid id
-        string title
-        enum priority
-        enum status
-        uuid contact_id
-        uuid deal_id
-    }
-    USER ||--o{ CONTACT : owns
-    USER ||--o{ LEAD : owns
-    CONTACT ||--o{ LEAD : generates
-    LEAD ||--o| DEAL : converts
-    CONTACT ||--o{ TASK : has
-    DEAL ||--o{ TASK : has
+```go
+// Definição — em contact/model.go
+type Repository interface {
+    FindByID(id uuid.UUID) (*Contact, error)
+    Save(contact *Contact) (*Contact, error)
+    // ...
+}
+
+// Implementação PostgreSQL — em contact/repository_pg.go (Módulo 03)
+type postgresRepository struct{ db *gorm.DB }
+
+func (r *postgresRepository) FindByID(id uuid.UUID) (*Contact, error) { ... }
+func (r *postgresRepository) Save(contact *Contact) (*Contact, error) { ... }
+// Satisfaz contact.Repository sem declaração explícita
+
+// Mock para testes — em tests/unit/
+type mockRepository struct{ contacts map[uuid.UUID]*Contact }
+
+func (m *mockRepository) FindByID(id uuid.UUID) (*Contact, error) { ... }
+// Também satisfaz contact.Repository — trocável sem alterar o Service
 ```
+
+> [!IMPORTANT]
+> Em Java/C# declaras `implements Repository`. Em Go, **se tens os métodos, implementas a interface** — sem palavras-chave. Isto permite criar mocks de teste para qualquer interface, incluindo de bibliotecas externas.
 
 ---
 
-## 🔄 Pipeline de Vendas
+### Tipos personalizados com comportamento
+
+<details>
+<summary><strong>Ver: Estado de um Lead com transições válidas</strong></summary>
+
+```go
+type Status string
+
+const (
+    StatusNew       Status = "new"
+    StatusContacted Status = "contacted"
+    StatusQualified Status = "qualified"
+    StatusLost      Status = "lost"
+)
+
+// CanTransitionTo encapsula as regras de negócio no tipo.
+// O caller não precisa de saber quais transições são válidas.
+func (s Status) CanTransitionTo(next Status) bool {
+    transitions := map[Status][]Status{
+        StatusNew:       {StatusContacted, StatusLost},
+        StatusContacted: {StatusQualified, StatusLost},
+        StatusQualified: {StatusLost},
+        StatusLost:      {},           // estado final
+    }
+    for _, allowed := range transitions[s] {
+        if allowed == next {
+            return true
+        }
+    }
+    return false
+}
+```
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Contacto : Novo contacto
-    Contacto --> Lead : Qualificado
-    Lead --> Proposta : Interesse confirmado
-    Proposta --> Negociacao : Proposta enviada
-    Negociacao --> Ganho : Aceite
-    Negociacao --> Perdido : Recusado
-    Ganho --> [*]
-    Perdido --> [*]
+    [*] --> new
+    new --> contacted : CanTransitionTo ✅
+    new --> lost : CanTransitionTo ✅
+    contacted --> qualified : CanTransitionTo ✅
+    contacted --> lost : CanTransitionTo ✅
+    qualified --> lost : CanTransitionTo ✅
+    lost --> [*]
+    new --> qualified : ❌ inválido
+    qualified --> new : ❌ inválido
 ```
+
+</details>
 
 ---
 
-## 🏛️ Arquitetura Final
+### Goroutines e Channels — o Event Bus
 
-```mermaid
-flowchart TD
-    Client["Cliente HTTPS"] --> API
+<details>
+<summary><strong>Ver: Como funciona o Event Bus</strong></summary>
 
-    subgraph APP["GoRM Application"]
-        API["API Layer - Fiber"]
-        Service["Service Layer - Business Logic"]
-        Repo["Repository Layer - Data Access"]
-        Worker["Workers - Goroutines Async"]
-        Cache["Cache - Redis"]
-        API --> Service
-        Service --> Repo
-        Service --> Worker
-        Service <--> Cache
-    end
+```go
+// O Bus tem um channel com buffer — o publisher não bloqueia
+type Bus struct {
+    ch       chan Event  // channel com buffer de 500
+    handlers map[EventType][]Handler
+}
 
-    Repo --> PG[("PostgreSQL")]
-    Repo --> MG[("MongoDB")]
-    Worker --> EMAIL["SMTP - Notificacoes"]
+// Publish — envia para o channel sem bloquear
+func (b *Bus) Publish(event Event) {
+    select {
+    case b.ch <- event:   // envia se houver espaço
+    default:              // descarta se o channel estiver cheio
+        b.logger.Warn("event bus full, dropping event")
+    }
+}
+
+// Start — lança uma goroutine que processa eventos em background
+func (b *Bus) Start(ctx context.Context) {
+    go func() {          // "go" lança a goroutine
+        for {
+            select {
+            case event := <-b.ch:   // recebe do channel
+                b.dispatch(ctx, event)
+            case <-ctx.Done():      // termina quando o contexto é cancelado
+                return
+            }
+        }
+    }()
+}
 ```
-
----
-
-## 🔐 Fluxo de Autenticacao
 
 ```mermaid
 sequenceDiagram
-    actor User
-    participant API
-    participant AuthService
-    participant DB
-    participant JWT
+    participant API as API Handler
+    participant Bus as Event Bus (channel)
+    participant W as Worker (goroutine)
+    participant H as Handlers
 
-    User->>API: POST /auth/login
-    API->>AuthService: Login(credentials)
-    AuthService->>DB: SELECT user
-    DB-->>AuthService: user record
+    API->>Bus: Publish(ContactCreated)
+    Note over API,Bus: não bloqueia — channel tem buffer
+    Bus-->>API: ok, imediato
 
-    alt Password valida
-        AuthService->>JWT: GenerateToken(userID, role)
-        JWT-->>AuthService: signed token
-        API-->>User: 200 OK com token
-    else Password invalida
-        API-->>User: 401 Unauthorized
-    end
-
-    User->>API: GET /contacts com Bearer token
-    API->>JWT: ValidateToken()
-    JWT-->>API: claims
-    API-->>User: 200 OK com contacts
+    W->>Bus: recebe evento do channel
+    Bus-->>W: Event{ContactCreated, payload}
+    W->>H: dispatch para handlers registados
+    H-->>W: ActivityLogger, EmailNotifier, ...
 ```
+
+> [!TIP]
+> A goroutine vive enquanto o contexto (`ctx`) estiver ativo. Quando a app faz shutdown, `cancel()` é chamado e `ctx.Done()` fecha a goroutine de forma limpa — sem goroutine leaks.
+
+</details>
 
 ---
 
-## 🧪 Piramide de Testes
+### Receivers: valor vs ponteiro
 
-```mermaid
-flowchart TB
-    E2E["E2E - 5 percent - Fluxos completos via HTTP"]
-    INT["Integracao - 15 percent - Service e Repository com DB real"]
-    UNIT["Unitarios - 80 percent - Service logic, Validacoes, Mappers"]
-    UNIT --> INT --> E2E
-    style UNIT fill:#22c55e,color:#fff
-    style INT fill:#f59e0b,color:#fff
-    style E2E fill:#ef4444,color:#fff
+```go
+// Receiver de VALOR — não modifica a struct, trabalha numa cópia
+func (t Task) IsOverdue() bool {
+    if t.DueDate == nil { return false }
+    return time.Now().After(*t.DueDate)
+}
+
+// Receiver de PONTEIRO — quando o método modifica a struct
+// (veremos isto nos services do Módulo 03+)
+func (f *Filters) SetDefaults() {
+    if f.Page <= 0 { f.Page = 1 }  // modifica o original via ponteiro
+}
 ```
+
+> [!NOTE]
+> Regra prática: usa receiver de **ponteiro** se o método modifica a struct ou se a struct é grande (evita cópia). Usa receiver de **valor** para operações de leitura em structs pequenas.
 
 ---
 
-## ⚙️ CI/CD Pipeline
+## 🧪 Testes neste módulo
+
+```bash
+go test -v ./tests/unit/...
+```
+
+<details>
+<summary><strong>Ver: Exemplo de table-driven test</strong></summary>
+
+```go
+func TestLeadStatus_CanTransitionTo(t *testing.T) {
+    t.Parallel()
+
+    tests := []struct {
+        name     string
+        from     lead.Status
+        to       lead.Status
+        expected bool
+    }{
+        {"new can go to contacted",        lead.StatusNew,       lead.StatusContacted, true},
+        {"new cannot skip to qualified",   lead.StatusNew,       lead.StatusQualified, false},
+        {"lost is a final state",          lead.StatusLost,      lead.StatusNew,       false},
+        // adicionar mais casos sem escrever mais código de setup
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            t.Parallel()  // cada sub-teste corre em paralelo
+            got := tt.from.CanTransitionTo(tt.to)
+            if got != tt.expected {
+                t.Errorf("got %v, want %v", got, tt.expected)
+            }
+        })
+    }
+}
+```
+
+</details>
+
+---
+
+## 📁 Ficheiros deste módulo
+
+<details>
+<summary><strong>Ver ficheiros criados/modificados</strong></summary>
+
+```
+Criados:
+├── internal/contact/model.go        ← Contact struct + Repository interface + Filters
+├── internal/lead/model.go           ← Lead struct + Status + transições de estado
+├── internal/deal/model.go           ← Deal struct + Stage + pipeline de vendas
+├── internal/task/model.go           ← Task struct + Priority + IsOverdue()
+├── internal/user/model.go           ← User struct + Role
+├── internal/shared/events/events.go ← Event Bus: channel + goroutine worker
+├── tests/unit/lead_model_test.go    ← Table-driven tests para Lead.Status
+└── tests/unit/task_model_test.go    ← Table-driven tests para Task.IsOverdue
+
+Modificados:
+└── cmd/api/main.go                  ← Integra Event Bus + graceful shutdown
+```
+
+</details>
+
+---
+
+## 🔄 O que vem a seguir
+
+> [!TIP]
+> No **Módulo 03**, cada `Repository interface` que definiste aqui vai ganhar uma implementação real em PostgreSQL. O padrão que estabeleceste agora é o que torna tudo trocável — mocks nos testes, PostgreSQL em produção, a mesma interface.
 
 ```mermaid
 flowchart LR
-    DEV["git push"] --> PR["Pull Request"]
-
-    subgraph CI["GitHub Actions CI"]
-        L["golangci-lint"] --> T["go test"] --> B["go build"] --> D["docker build"]
-    end
-
-    PR --> CI
-    CI -->|pass| MERGE["Merge to main"]
-
-    subgraph CD["Deploy Pipeline"]
-        R["Push Registry"] --> S["Deploy Staging"] --> ST["Smoke Tests"] --> P["Deploy Prod"]
-    end
-
-    MERGE --> CD
+    M02["✅ M02\nInterfaces definidas\nModels criados"]
+    M03["M03 — SQL\nImplementar as interfaces\ncom GORM + PostgreSQL"]
+    M02 -->|"contact.Repository\n→ PostgreSQLRepo"| M03
+    style M02 fill:#22c55e,color:#fff
+    style M03 fill:#e5e7eb
 ```
 
 ---
 
-## 📁 Estrutura de Pastas
+## 🎯 Desafio
 
-```
-gorm-crm/
-├── cmd/api/main.go
-├── internal/
-│   ├── contact/        # Handler · Service · Repository · Model · DTO
-│   ├── lead/
-│   ├── deal/
-│   ├── task/
-│   ├── auth/           # JWT · Middleware · RBAC
-│   └── shared/         # Errors · Events · Utils
-├── pkg/
-│   ├── database/
-│   ├── cache/
-│   └── logger/
-├── migrations/
-├── docs/               # Diagramas e ADRs
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-├── docker-compose.yml
-├── Dockerfile
-├── Makefile
-└── .github/workflows/ci.yml
-```
+Ver [CHALLENGE.md](CHALLENGE.md)
+
+- **Nível 1** — Adiciona um método `Contact.FullName()` que devolve nome + empresa
+- **Nível 2** — Adiciona validação de email com regex no model (sem bibliotecas externas)
+- **Nível 3** — Implementa um `MockContactRepository` que satisfaz a interface e escreve testes com ele
 
 ---
 
-## 🛠️ Stack
+## ✅ Checklist antes de avançar
 
-| Camada | Tecnologia |
-|--------|-----------|
-| Linguagem | Go 1.22+ |
-| HTTP Framework | Fiber |
-| ORM | GORM + golang-migrate |
-| Base de dados | PostgreSQL |
-| Logs / Historico | MongoDB |
-| Cache | Redis |
-| Auth | JWT (golang-jwt) |
-| Containers | Docker + Docker Compose |
-| CI/CD | GitHub Actions |
-| Cloud | AWS / GCP |
-| Testes | testify + testcontainers |
+- [ ] `go test ./tests/unit/...` passa sem erros
+- [ ] Entendes a diferença entre interface implícita Go vs `implements` Java/C#
+- [ ] Sabes quando usar `*T` vs `T` num struct field
+- [ ] Consegues explicar o que é um channel com buffer e porque não bloqueia
 
 ---
 
-## 🚦 Como Comecar
+<!-- NAVIGATION BAR BOTTOM -->
+<div align="center">
 
-```bash
-git clone https://github.com/titi-byte-dev/gorm-crm.git
-cd gorm-crm
-git checkout branch-01-setup
-cat README.md
-make run
-curl http://localhost:8080/health
-```
+**[⬅️ M01 — Setup](https://github.com/titi-byte-dev/gorm-crm/tree/branch-01-setup)** &nbsp;|&nbsp;
+`02 / 18` &nbsp;|&nbsp;
+**[M03 — SQL & PostgreSQL ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-03-sql)**
 
----
-
-## 📋 Checklist por Modulo
-
-- [ ] README.md com objetivo claro
-- [ ] Diagrama Mermaid de contexto
-- [ ] Codigo Go funcional e testavel
-- [ ] Testes (a partir do M03)
-- [ ] CHALLENGE.md com exercicio pratico
-- [ ] ADR se houve decisao de design
-- [ ] git tag no final do modulo
-
----
-
-## 📜 Licenca
-
-MIT © [titi-byte-dev](https://github.com/titi-byte-dev)
-
----
-
-> *"O melhor codigo e o codigo que tu proprio construiste, entendes e consegues explicar."*
+</div>

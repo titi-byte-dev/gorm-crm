@@ -20,15 +20,26 @@ type Contact struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// Repository define o contrato de acesso a dados para Contact.
-// A implementação concreta (PostgreSQL, mock para testes) fica noutro ficheiro.
-type Repository interface {
+// Reader define operacoes de leitura sobre Contact.
+// Um servico de relatorios pode receber apenas Reader — superficie minima.
+type Reader interface {
 	FindByID(id uuid.UUID) (*Contact, error)
 	FindAll(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, error)
 	FindByEmail(email string) (*Contact, error)
+}
+
+// Writer define operacoes de escrita sobre Contact.
+type Writer interface {
 	Save(contact *Contact) (*Contact, error)
 	Update(contact *Contact) (*Contact, error)
 	Delete(id uuid.UUID) error
+}
+
+// Repository e a composicao de Reader e Writer — contrato completo para o Service.
+// Interface embedding: Repository inclui todos os metodos de Reader e Writer.
+type Repository interface {
+	Reader
+	Writer
 }
 
 // Filters encapsula os parâmetros de pesquisa e paginação para contactos.

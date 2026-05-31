@@ -55,16 +55,26 @@ func (t Task) IsOverdue() bool {
 	return time.Now().After(*t.DueDate)
 }
 
-// Repository define o contrato de acesso a dados para Task.
-type Repository interface {
+// Reader define operacoes de leitura sobre Task.
+type Reader interface {
 	FindByID(id uuid.UUID) (*Task, error)
 	FindAll(assignedTo uuid.UUID, filters Filters) ([]*Task, int64, error)
 	FindByContact(contactID uuid.UUID) ([]*Task, error)
 	FindByDeal(dealID uuid.UUID) ([]*Task, error)
 	FindOverdue() ([]*Task, error)
+}
+
+// Writer define operacoes de escrita sobre Task.
+type Writer interface {
 	Save(task *Task) (*Task, error)
 	Update(task *Task) (*Task, error)
 	Delete(id uuid.UUID) error
+}
+
+// Repository e a composicao de Reader e Writer.
+type Repository interface {
+	Reader
+	Writer
 }
 
 // Filters encapsula os parâmetros de pesquisa para tasks.

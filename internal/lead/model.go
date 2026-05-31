@@ -54,14 +54,24 @@ type Lead struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// Repository define o contrato de acesso a dados para Lead.
-type Repository interface {
+// Reader define operacoes de leitura sobre Lead.
+type Reader interface {
 	FindByID(id uuid.UUID) (*Lead, error)
 	FindAll(ownerID uuid.UUID, filters Filters) ([]*Lead, int64, error)
 	FindByContact(contactID uuid.UUID) ([]*Lead, error)
+}
+
+// Writer define operacoes de escrita sobre Lead.
+type Writer interface {
 	Save(lead *Lead) (*Lead, error)
 	Update(lead *Lead) (*Lead, error)
 	Delete(id uuid.UUID) error
+}
+
+// Repository e a composicao de Reader e Writer.
+type Repository interface {
+	Reader
+	Writer
 }
 
 // Filters encapsula os parâmetros de pesquisa para leads.

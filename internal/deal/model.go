@@ -58,14 +58,24 @@ type Deal struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 }
 
-// Repository define o contrato de acesso a dados para Deal.
-type Repository interface {
+// Reader define operacoes de leitura sobre Deal.
+type Reader interface {
 	FindByID(id uuid.UUID) (*Deal, error)
 	FindAll(ownerID uuid.UUID, filters Filters) ([]*Deal, int64, error)
 	FindByContact(contactID uuid.UUID) ([]*Deal, error)
+}
+
+// Writer define operacoes de escrita sobre Deal.
+type Writer interface {
 	Save(deal *Deal) (*Deal, error)
 	Update(deal *Deal) (*Deal, error)
 	Delete(id uuid.UUID) error
+}
+
+// Repository e a composicao de Reader e Writer.
+type Repository interface {
+	Reader
+	Writer
 }
 
 // Filters encapsula os parâmetros de pesquisa para deals.

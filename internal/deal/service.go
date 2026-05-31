@@ -60,25 +60,33 @@ func (s *Service) MoveStage(id uuid.UUID, newStage Stage) (*Deal, error) {
 	}
 
 	deal.Stage = newStage
-	if newStage.IsClosed() {
-		now := time.Now()
-		deal.ClosedAt = &now
-	}
+	stampClosedAt(deal)
 
 	updated, err := s.repo.Update(deal)
 	if err != nil {
 		return nil, fmt.Errorf("update deal: %w", err)
 	}
 
+	s.publishDealEvent(updated)
+	return updated, nil
+}
+
+func stampClosedAt(d *Deal) {
+	if d.Stage.IsClosed() {
+		now := time.Now()
+		d.ClosedAt = &now
+	}
+}
+
+func (s *Service) publishDealEvent(d *Deal) {
+	if !d.Stage.IsClosed() {
+		return
+	}
 	evtType := events.DealLost
-	if newStage == StageWon {
+	if d.Stage == StageWon {
 		evtType = events.DealWon
 	}
-	if newStage.IsClosed() {
-		s.bus.Publish(events.Event{Type: evtType, Payload: updated, UserID: deal.OwnerID.String()})
-	}
-
-	return updated, nil
+	s.bus.Publish(events.Event{Type: evtType, Payload: d, UserID: d.OwnerID.String()})
 }
 
 func (s *Service) Delete(id uuid.UUID) error {

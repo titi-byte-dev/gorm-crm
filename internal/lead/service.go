@@ -9,12 +9,20 @@ import (
 )
 
 type Service struct {
-	repo Repository
-	bus  *events.Bus
+	repo   Repository
+	bus    *events.Bus
+	scorer Scorer
 }
 
-func NewService(repo Repository, bus *events.Bus) *Service {
-	return &Service{repo: repo, bus: bus}
+// NewService aceita um Scorer opcional via variadic.
+// Sem argumento → BasicScorer. Com argumento → scorer fornecido.
+// Variadic em vez de ponteiro nulo: o compilador garante que scorer nunca é nil.
+func NewService(repo Repository, bus *events.Bus, scorer ...Scorer) *Service {
+	s := &Service{repo: repo, bus: bus, scorer: BasicScorer{}}
+	if len(scorer) > 0 {
+		s.scorer = scorer[0]
+	}
+	return s
 }
 
 type CreateLeadDTO struct {
@@ -85,4 +93,14 @@ func (s *Service) UpdateStatus(id uuid.UUID, newStatus Status) (*Lead, error) {
 
 func (s *Service) Delete(id uuid.UUID) error {
 	return s.repo.Delete(id)
+}
+
+// Score calcula a pontuação de um lead usando o Scorer configurado.
+// O caller não sabe se usa BasicScorer, WeightedScorer, ou qualquer outro.
+func (s *Service) Score(id uuid.UUID) (int, error) {
+	lead, err := s.repo.FindByID(id)
+	if err != nil {
+		return 0, fmt.Errorf("score lead: %w", err)
+	}
+	return s.scorer.Score(lead), nil
 }

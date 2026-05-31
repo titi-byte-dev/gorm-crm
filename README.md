@@ -1,24 +1,23 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M07 — Arquitectura MVC](https://github.com/titi-byte-dev/gorm-crm/tree/branch-07-mvc-layers)** &nbsp;|&nbsp;
-`branch-08-docker` &nbsp;|&nbsp;
-**[M09 — NoSQL & MongoDB ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)**
+**[⬅️ M08 — Docker 🏆](https://github.com/titi-byte-dev/gorm-crm/tree/branch-08-docker)** &nbsp;|&nbsp;
+`branch-09-nosql` &nbsp;|&nbsp;
+**[M10 — Clean Code ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-10-clean-code)**
 
-`████████░░░░░░░░░░░░` Módulo **08 / 18** — Nível 🟢 Júnior **→ 🏆**
+`█████████░░░░░░░░░░░` Módulo **09 / 18** — Nível 🔵 Pleno
 
 </div>
 
 ---
 
-# 🐳 Módulo 08 — Docker
+# 🍃 Módulo 09 — NoSQL & MongoDB
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
-[![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?style=flat&logo=docker&logoColor=white)](Dockerfile)
-[![Imagem](https://img.shields.io/badge/imagem%20produção-~15MB-brightgreen)](Dockerfile)
-[![Módulo](https://img.shields.io/badge/Módulo-08%20%2F%2018-brightgreen)](.)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7-47A248?style=flat&logo=mongodb&logoColor=white)](.)
+[![Módulo](https://img.shields.io/badge/Módulo-09%20%2F%2018-blue)](.)
 
-> **O que foi construído:** Dockerfile multi-stage (800MB builder → 15MB runtime), docker-compose com toda a stack, healthcheck real com verificação de DB, e targets `make docker/*` para o workflow diário.
+> **O que foi construído:** Activity logs em MongoDB. Cada acção no CRM (criar contacto, ganhar deal, etc.) gera automaticamente um log persistido no MongoDB via Event Bus — sem alterar uma linha dos serviços existentes.
 
 ---
 
@@ -26,140 +25,114 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Explicar o que é um container e porquê é diferente de uma VM
-- [ ] Criar um Dockerfile multi-stage e explicar a vantagem
-- [ ] Usar `docker-compose` para orquestrar múltiplos serviços
-- [ ] Implementar um healthcheck que verifica dependências reais
-- [ ] Explicar porquê a ordem das camadas no Dockerfile importa
+- [ ] Explicar quando usar NoSQL vs SQL e porquê
+- [ ] Ligar uma app Go ao MongoDB com o driver oficial
+- [ ] Criar índices MongoDB incluindo TTL (expiração automática)
+- [ ] Implementar o padrão Observer com Event Bus e goroutines
+- [ ] Aplicar graceful degradation — funcionalidade secundária que falha sem quebrar o sistema
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-08-docker
+git checkout branch-09-nosql
+make docker/up   # inicia postgres + mongodb
 
-# Opção A — apenas PostgreSQL (dev com go run)
-make db/up
-make run
+# Login e cria um contacto
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@crm.com","password":"segredo123"}' | jq -r .access_token)
 
-# Opção B — toda a stack em containers
-make docker/up
-curl http://localhost:8080/health
+curl -X POST http://localhost:8080/api/v1/contacts \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"João Silva","email":"joao@x.com"}'
+
+# Ver os logs gerados automaticamente
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/activity/me
 ```
 
 ---
 
-## 🗺️ Multi-stage Build — o porquê
+## 🗺️ Como os logs chegam ao MongoDB
 
 ```mermaid
-flowchart LR
-    subgraph BUILD["Stage 1 — builder (~800MB)"]
-        B1["golang:1.22-alpine\nCompilador Go\nDependências\nFeramentas de build"]
-        B2["go mod download\ngo build -ldflags='-s -w'"]
-        B1 --> B2
-    end
+sequenceDiagram
+    actor User
+    participant API as ContactHandler
+    participant Svc as ContactService
+    participant Bus as Event Bus (goroutine)
+    participant Act as ActivityLog Service
+    participant Mongo as MongoDB
 
-    subgraph RUNTIME["Stage 2 — runtime (~15MB)"]
-        R1["alpine:3.19\nca-certificates\nbinário compilado\nmigrations"]
-    end
+    User->>API: POST /contacts {name, email}
+    API->>Svc: Create(dto)
+    Svc->>Svc: salva no PostgreSQL
+    Svc->>Bus: Publish(ContactCreated)
+    Svc-->>API: contact criado
+    API-->>User: 201 Created
 
-    B2 -->|"COPY --from=builder\nSó o binário"| R1
+    Note over Bus,Mongo: em background — utilizador já recebeu resposta
 
-    DEV["👨‍💻 Developer\ngit push"] --> BUILD
-    RUNTIME -->|"deploy"| PROD["🚀 Produção"]
-
-    style BUILD fill:#fef9c3,stroke:#f59e0b
-    style RUNTIME fill:#dcfce7,stroke:#22c55e
+    Bus->>Act: handleEvent(ContactCreated)
+    Act->>Mongo: InsertOne(activity_log)
+    Mongo-->>Act: ok
 ```
 
 ---
 
 ## 🔍 Conceitos-Chave
 
-### Ordem das camadas — cache do Docker
-
-> [!IMPORTANT]
-> O Docker invalida o cache a partir da **primeira linha que muda**. A ordem das camadas define a eficiência do build.
-
-```dockerfile
-# ✅ Correcto — dependências antes do código
-COPY go.mod go.sum ./
-RUN go mod download        # ← cacheia aqui (muda raramente)
-COPY . .                   # ← código (muda frequentemente)
-RUN go build ...
-
-# ❌ Errado — invalida cache em cada mudança de código
-COPY . .
-RUN go mod download        # recorre sempre que qualquer ficheiro muda
-RUN go build ...
-```
-
-**Impacto:** build com cache ~3s vs sem cache ~35s.
-
----
-
-### depends_on com healthcheck
+### SQL vs NoSQL — quando usar cada um
 
 <details>
-<summary><strong>Ver: porquê service_healthy em vez de apenas depends_on</strong></summary>
+<summary><strong>Ver: comparação com o caso real do GoRM</strong></summary>
 
-```yaml
-# ❌ depends_on simples — começa quando o container inicia, não quando está pronto
-depends_on:
-  - postgres
-
-# ✅ depends_on com healthcheck — aguarda que o postgres esteja realmente pronto
-depends_on:
-  postgres:
-    condition: service_healthy
 ```
+PostgreSQL — dados relacionais do CRM:
+  ✅ Relações entre entidades (contact → lead → deal)
+  ✅ Transações ACID ("criar deal e actualizar lead atomicamente")
+  ✅ Queries complexas com JOINs
+  ✅ Integridade referencial (FK constraints)
 
-**O que acontece sem `service_healthy`:**
-1. Docker inicia o container do postgres
-2. Docker inicia imediatamente o container da api
-3. A api tenta ligar ao DB nos primeiros 2 segundos
-4. O postgres ainda está a inicializar → ligação falha → container da api morre
-
-**Com `service_healthy`:**
-1. Docker inicia postgres
-2. Aguarda que `pg_isready` retorne OK (healthcheck)
-3. Só então inicia a api
-4. Ligação ao DB bem-sucedida
+MongoDB — activity logs:
+  ✅ Schema flexível (cada evento tem payload diferente)
+  ✅ Alta taxa de writes (um log por acção)
+  ✅ Queries simples (find por user_id, find por entity_id)
+  ✅ TTL automático (logs expiram após 90 dias)
+  ❌ Sem JOINs — não serve para dados relacionais
+```
 
 </details>
 
 ---
 
-### Health endpoint com verificação real
+### TTL Index — expiração automática
 
-<details>
-<summary><strong>Ver: healthcheck que avisa quando o DB está em baixo</strong></summary>
+> [!TIP]
+> O MongoDB pode apagar documentos automaticamente com um TTL Index — sem cron jobs, sem código de limpeza.
 
-```bash
-# DB online → 200 OK
-curl http://localhost:8080/health
-{
-  "status": "ok",
-  "version": "0.8.0",
-  "checks": { "database": "ok" }
-}
-
-# DB offline → 503 Service Unavailable
-{
-  "status": "degraded",
-  "checks": { "database": "degraded" }
-}
+```go
+// Criado uma vez no startup — apaga logs com mais de 90 dias
+options.Index().SetExpireAfterSeconds(90 * 24 * 3600)
 ```
 
-**Porquê 503 e não 200 quando o DB está em baixo?**
+---
 
-Um load balancer usa o healthcheck para decidir onde enviar tráfego.
-Se a api devolve 200 mesmo com o DB em baixo, o LB continua a enviar
-requests — que vão todos falhar com 500. Com 503, o LB retira este
-nó do pool e redireciona para instâncias saudáveis.
+### Graceful Degradation
 
-</details>
+> [!NOTE]
+> A app funciona sem MongoDB. Se o Mongo estiver em baixo, os logs são descartados silenciosamente — mas contactos, leads e deals continuam a funcionar.
+
+```go
+mongoDB, err = database.NewMongo(...)
+if err != nil {
+    log.Warn("mongodb unavailable — activity logging disabled")
+    // NÃO faz os.Exit(1)  ← funcionalidade secundária não é crítica
+}
+```
 
 ---
 
@@ -167,47 +140,17 @@ nó do pool e redireciona para instâncias saudáveis.
 
 ```
 Criados:
-├── Dockerfile              ← multi-stage: builder + runtime
-├── .dockerignore           ← exclui .env, .git, docs do contexto
-└── docs/adr/009-docker-strategy.md
+├── pkg/database/mongodb.go
+├── internal/activitylog/
+│   ├── model.go           ← Log struct com bson tags + Repository interface
+│   ├── repository_mongo.go← BSON, índices, TTL, sort por ObjectID
+│   ├── service.go         ← Observer: RegisterHandlers no Event Bus
+│   └── handler.go         ← GET /activity/me e /activity/:type/:id
 
 Modificados:
-├── docker-compose.yml      ← adiciona serviço api + depends_on correcto
-├── Makefile                ← docker/build, docker/up, docker/down, docker/logs
-└── cmd/api/main.go         ← health endpoint com verificação de DB
+├── docker-compose.yml     ← MongoDB descomentado
+└── cmd/api/main.go        ← MongoDB opcional + wiring
 ```
-
----
-
-## 🏆 Marco — Programador Júnior
-
-> [!NOTE]
-> Com este módulo, o nível **Júnior** está completo.
-
-```mermaid
-flowchart LR
-    M01["M01\nSetup"]
-    M02["M02\nGo Fundamentos"]
-    M03["M03\nSQL"]
-    M04["M04\nGit"]
-    M05["M05\nREST API"]
-    M06["M06\nAuth"]
-    M07["M07\nArquitectura"]
-    M08["M08\nDocker"]
-    BADGE(["🏆 Júnior"])
-
-    M01-->M02-->M03-->M04-->M05-->M06-->M07-->M08-->BADGE
-
-    style BADGE fill:#f59e0b,color:#fff,stroke:#d97706
-    style M08 fill:#22c55e,color:#fff
-```
-
-**O que consegues agora:**
-- Construir uma API REST completa com autenticação real
-- Persistir dados em PostgreSQL com padrão Repository
-- Contentar a app e o ambiente de desenvolvimento
-- Escrever testes unitários sem infra externa
-- Navegar e contribuir num repositório Git profissional
 
 ---
 
@@ -215,26 +158,26 @@ flowchart LR
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Corre `make docker/build` e compara o tamanho com `golang:1.22-alpine`
-- **Nível 2** — Quebra o healthcheck (para o postgres) e observa o 503
-- **Nível 3** — Adiciona um `docker-compose.test.yml` para correr os testes em containers
+- **Nível 1** — Cria um contacto e um deal, depois vê os logs em `/activity/me`
+- **Nível 2** — Implementa `GET /activity/contact/:id` usando o endpoint de entidade
+- **Nível 3** — Altera o TTL de 90 para 30 dias e verifica que o índice foi recriado
 
 ---
 
-## ✅ Checklist antes de avançar para Pleno
+## ✅ Checklist antes de avançar
 
-- [ ] `make docker/up` funciona — app + postgres em containers
-- [ ] `curl http://localhost:8080/health` devolve `"status":"ok"` com checks
-- [ ] Entendes porquê a imagem de runtime tem ~15MB e não ~800MB
-- [ ] Sabes o que acontece se removeres `condition: service_healthy`
+- [ ] `make docker/up` e a app mostra "mongodb connected" nos logs
+- [ ] Criaste um contacto e viste o log em `/activity/me`
+- [ ] Consegues explicar porquê MongoDB para logs e não PostgreSQL
+- [ ] Entendes graceful degradation — funcionalidade secundária que falha sem quebrar o sistema
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M07 — Arquitectura MVC](https://github.com/titi-byte-dev/gorm-crm/tree/branch-07-mvc-layers)** &nbsp;|&nbsp;
-`08 / 18` — 🏆 Júnior completo &nbsp;|&nbsp;
-**[M09 — NoSQL ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)**
+**[⬅️ M08 — Docker 🏆](https://github.com/titi-byte-dev/gorm-crm/tree/branch-08-docker)** &nbsp;|&nbsp;
+`09 / 18` &nbsp;|&nbsp;
+**[M10 — Clean Code ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-10-clean-code)**
 
 </div>

@@ -84,18 +84,7 @@ func (s *Service) Update(id uuid.UUID, dto UpdateContactDTO) (*Contact, error) {
 		return nil, fmt.Errorf("update contact: %w", err)
 	}
 
-	if dto.Name != nil {
-		contact.Name = *dto.Name
-	}
-	if dto.Phone != nil {
-		contact.Phone = *dto.Phone
-	}
-	if dto.Company != nil {
-		contact.Company = *dto.Company
-	}
-	if dto.Notes != nil {
-		contact.Notes = *dto.Notes
-	}
+	applyUpdates(contact, dto)
 
 	updated, err := s.repo.Update(contact)
 	if err != nil {
@@ -109,6 +98,23 @@ func (s *Service) Update(id uuid.UUID, dto UpdateContactDTO) (*Contact, error) {
 	})
 
 	return updated, nil
+}
+
+// applyUpdates aplica os campos opcionais do DTO ao contacto.
+// Ponteiro nil significa "não alterar" — só actualiza campos enviados.
+func applyUpdates(c *Contact, dto UpdateContactDTO) {
+	if dto.Name != nil {
+		c.Name = *dto.Name
+	}
+	if dto.Phone != nil {
+		c.Phone = *dto.Phone
+	}
+	if dto.Company != nil {
+		c.Company = *dto.Company
+	}
+	if dto.Notes != nil {
+		c.Notes = *dto.Notes
+	}
 }
 
 func (s *Service) Delete(id uuid.UUID) error {

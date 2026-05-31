@@ -43,17 +43,53 @@ type Bus struct {
 	logger   *slog.Logger
 }
 
-// DefaultBufferSize é a capacidade do channel do bus em produção.
+// DefaultBufferSize e a capacidade do channel do bus em producao.
 // Suficiente para absorver picos sem bloquear os handlers HTTP.
 const DefaultBufferSize = 500
 
-// New cria um Bus com um channel com buffer de capacidade cap.
-// Um channel com buffer não bloqueia o publisher enquanto houver espaço.
-func New(cap int, logger *slog.Logger) *Bus {
+// busConfig guarda as opcoes de configuracao antes de construir o Bus.
+type busConfig struct {
+	bufferSize int
+	logger     *slog.Logger
+}
+
+// Option e uma funcao que modifica a configuracao do Bus.
+// Padrao Functional Options: configuracao sem parametros posicionais.
+type Option func(*busConfig)
+
+// WithBufferSize define a capacidade do channel do bus.
+func WithBufferSize(size int) Option {
+	return func(c *busConfig) { c.bufferSize = size }
+}
+
+// WithLogger define o logger do bus.
+func WithLogger(log *slog.Logger) Option {
+	return func(c *busConfig) { c.logger = log }
+}
+
+// New cria um Bus com as opcoes fornecidas.
+// Se nenhuma opcao for passada, usa DefaultBufferSize e slog.Default().
+//
+// Antes (parametros posicionais):
+//   events.New(500, log)           — ordem importa, facil de trocar por engano
+//
+// Depois (functional options):
+//   events.New(
+//       events.WithBufferSize(500),
+//       events.WithLogger(log),
+//   )                              — auto-documentado, ordem nao importa
+func New(opts ...Option) *Bus {
+	cfg := &busConfig{
+		bufferSize: DefaultBufferSize,
+		logger:     slog.Default(),
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	return &Bus{
-		ch:       make(chan Event, cap),
+		ch:       make(chan Event, cfg.bufferSize),
 		handlers: make(map[EventType][]Handler),
-		logger:   logger,
+		logger:   cfg.logger,
 	}
 }
 

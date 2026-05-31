@@ -1,0 +1,27 @@
+# docker-compose.override.yml — aplicado automaticamente em `docker-compose up`
+# Sobrepõe o docker-compose.yml para ambiente de desenvolvimento local.
+# Em produção/CI este ficheiro não existe — usa apenas docker-compose.yml.
+services:
+  api:
+    build:
+      target: builder     # usa o stage builder (tem Go toolchain para air)
+    volumes:
+      - .:/app            # monta o código fonte para hot-reload
+      - /app/bin          # exclui o bin/ do mount (evita conflito)
+    command: ["go", "run", "./cmd/api/main.go"]
+    environment:
+      ENV: development
+
+  # Redis activo em desenvolvimento para testar cache
+  redis:
+    image: redis:7-alpine
+    container_name: gorm-crm-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_dev_data:

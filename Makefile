@@ -73,6 +73,17 @@ docker/logs: ## Mostra logs da app em tempo real
 docker/ps: ## Mostra o estado dos containers
 	docker-compose ps
 
+version: ## Mostra a versão actual (git describe)
+	@echo "Version:   $(VERSION)"
+	@echo "Commit:    $(COMMIT)"
+	@echo "BuildTime: $(BUILDTIME)"
+
+release: ## Cria e faz push de uma tag de release (uso: make release TAG=v1.0.0)
+	@[ "$(TAG)" ] || (echo "❌ Usa: make release TAG=v1.0.0"; exit 1)
+	git tag -a $(TAG) -m "Release $(TAG)"
+	git push origin $(TAG)
+	@echo "✅ Tag $(TAG) criada e publicada — CD pipeline iniciado"
+
 clean: ## Remove binários e ficheiros temporários
 	@rm -rf bin/ coverage.out coverage.html
 	@echo "🧹 Limpo"

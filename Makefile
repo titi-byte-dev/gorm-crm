@@ -1,8 +1,15 @@
 .PHONY: run build test lint clean tidy help setup docker/build docker/up docker/down docker/logs docker/ps
 
 # Variáveis
-BINARY=bin/gorm-crm
-MAIN=./cmd/api/main.go
+BINARY    = bin/gorm-crm
+MAIN      = ./cmd/api/main.go
+VERSION   = $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT    = $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILDTIME = $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS   = -s -w \
+  -X github.com/titi-byte-dev/gorm-crm/pkg/version.Version=$(VERSION) \
+  -X github.com/titi-byte-dev/gorm-crm/pkg/version.Commit=$(COMMIT) \
+  -X github.com/titi-byte-dev/gorm-crm/pkg/version.BuildTime=$(BUILDTIME)
 
 help: ## Mostra este menu de ajuda
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -10,10 +17,10 @@ help: ## Mostra este menu de ajuda
 run: ## Corre a app em modo desenvolvimento
 	go run $(MAIN)
 
-build: ## Compila o binário
+build: ## Compila o binário com version info injectada
 	@mkdir -p bin
-	go build -o $(BINARY) $(MAIN)
-	@echo "✅ Binário em $(BINARY)"
+	go build -ldflags="$(LDFLAGS)" -o $(BINARY) $(MAIN)
+	@echo "✅ $(BINARY) — version=$(VERSION) commit=$(COMMIT)"
 
 test: ## Corre todos os testes
 	go test -v -race ./...

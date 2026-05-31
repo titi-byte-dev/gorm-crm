@@ -22,6 +22,7 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/internal/user"
 	"github.com/titi-byte-dev/gorm-crm/pkg/database"
 	"github.com/titi-byte-dev/gorm-crm/pkg/logger"
+	"github.com/titi-byte-dev/gorm-crm/pkg/version"
 	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/gorm"
 )
@@ -81,7 +82,8 @@ func main() {
 		port = "8080"
 	}
 
-	log.Info("server starting", "port", port, "env", env)
+	log.Info("server starting", "port", port, "env", env,
+		"version", version.Version, "commit", version.Commit)
 	if err := app.Listen(":" + port); err != nil {
 		log.Error("server error", "error", err)
 		os.Exit(1)
@@ -120,7 +122,8 @@ func registerRoutes(app *fiber.App, db *gorm.DB, mongoDB *mongo.Database, bus *e
 		return c.Status(httpStatus).JSON(fiber.Map{
 			"status":  status,
 			"service": "gorm-crm",
-			"version": "0.9.0",
+			"version": version.Version,
+				"commit":  version.Commit,
 			"checks": fiber.Map{
 				"database": dbStatus,
 				"mongodb":  mongoStatus,

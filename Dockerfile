@@ -22,13 +22,21 @@ RUN go mod download
 # Agora copia o código fonte
 COPY . .
 
-# Compila o binário com otimizações para produção:
+# ARGs injectados pelo CI: docker build --build-arg VERSION=$(git describe ...)
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILDTIME=unknown
+
+# Compila o binário com otimizações e version info:
 #   CGO_ENABLED=0  — binário estático, sem dependências de runtime C
-#   GOOS=linux     — target OS explícito (mesmo que buildemos em Mac/Windows)
-#   -ldflags "-s -w" — remove debug symbols e DWARF → imagem ~30% menor
-#   -a             — força recompilação de todos os packages
+#   GOOS=linux     — target OS explícito
+#   -ldflags "-s -w" — remove debug symbols → imagem ~30% menor
+#   -X pkg/version.* — injeta version, commit, buildtime no binário
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-s -w" \
+    -ldflags="-s -w \
+      -X github.com/titi-byte-dev/gorm-crm/pkg/version.Version=${VERSION} \
+      -X github.com/titi-byte-dev/gorm-crm/pkg/version.Commit=${COMMIT} \
+      -X github.com/titi-byte-dev/gorm-crm/pkg/version.BuildTime=${BUILDTIME}" \
     -o /app/bin/gorm-crm \
     ./cmd/api/main.go
 

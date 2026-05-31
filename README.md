@@ -3,6 +3,41 @@
 > **Curso de backend com didática de autoconstrução.**
 > Cada branch Git = 1 módulo de aprendizagem. Do zero ao deploy, do Júnior ao Sénior.
 
+---
+
+## 📦 Módulo 01 — Setup & Estrutura Go
+
+> **Branch:** `branch-01-setup` | **Nível:** 🟢 Júnior | **Duração:** ~3 dias
+
+### O que vais aprender
+
+- Como estruturar um projeto Go com o Standard Layout
+- O que são módulos Go (`go.mod`, `go.sum`)
+- Como criar um servidor HTTP com Fiber
+- Como organizar middlewares e error handling global
+- Makefile para produtividade no dia-a-dia
+
+### O que foi construído neste módulo
+
+- `GET /health` — endpoint de saúde da app
+- Error handler global que mapeia erros de domínio para HTTP
+- Middleware de logging estruturado
+- Package `pkg/logger` com `slog` (stdlib Go 1.21+)
+- Makefile com comandos: `run`, `build`, `test`, `lint`, `tidy`
+
+### Contexto no GoRM
+
+```mermaid
+flowchart LR
+    A["go mod init"] --> B["Standard Layout\ncmd/ internal/ pkg/"]
+    B --> C["Fiber setup\ncmd/api/main.go"]
+    C --> D["Middlewares\nlogger + recover"]
+    D --> E["GET /health\n→ 200 OK"]
+    E --> F["make run ✅\nlocalhost:8080"]
+```
+
+---
+
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Modules](https://img.shields.io/badge/Módulos-18-blue)](docs/)

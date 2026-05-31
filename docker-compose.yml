@@ -1,29 +1,78 @@
 services:
+
+  # ─── Aplicação GoRM ───────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime        # usa o stage 'runtime', não o 'builder'
+    container_name: gorm-crm-api
+    ports:
+      - "8080:8080"
+    environment:
+      ENV:         development
+      PORT:        8080
+      # Base de dados — aponta para o serviço 'postgres' desta compose
+      # Em Docker, containers comunicam pelo nome do serviço, não por localhost
+      DB_HOST:     postgres
+      DB_PORT:     5432
+      DB_USER:     postgres
+      DB_PASSWORD: postgres
+      DB_NAME:     gorm_crm
+      DB_SSLMODE:  disable
+      # JWT — em produção usar secrets do orchestrator, não env directo
+      JWT_SECRET:  dev-secret-change-in-production
+    depends_on:
+      postgres:
+        condition: service_healthy  # aguarda o healthcheck do postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout:  5s
+      retries:  3
+
+  # ─── PostgreSQL ────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
+    container_name: gorm-crm-postgres
     environment:
       POSTGRES_USER:     postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB:       gorm_crm
     ports:
-      - "5432:5432"
+      - "5432:5432"          # expõe para o host (útil para DBeaver/psql local)
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
-      timeout: 5s
-      retries: 5
+      timeout:  5s
+      retries:  5
+    restart: unless-stopped
 
-  # Módulo 09 — MongoDB para activity logs
+  # ─── MongoDB — Activity Logs (Módulo 09) ──────────────────────────
   # mongo:
-  #   image: mongo:7
-  #   ports: ["27017:27017"]
+  #   image: mongo:7-jammy
+  #   container_name: gorm-crm-mongo
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongo_data:/data/db
+  #   restart: unless-stopped
 
-  # Módulo 17 — Redis para cache
+  # ─── Redis — Cache & Sessions (Módulo 17) ─────────────────────────
   # redis:
   #   image: redis:7-alpine
-  #   ports: ["6379:6379"]
+  #   container_name: gorm-crm-redis
+  #   command: redis-server --appendonly yes   # persistência AOF
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   restart: unless-stopped
 
 volumes:
   postgres_data:
+  # mongo_data:
+  # redis_data:

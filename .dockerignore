@@ -1,0 +1,25 @@
+# Binários e build artifacts
+bin/
+*.exe
+
+# Dependências locais (reconstruídas no container)
+vendor/
+
+# Ficheiros de ambiente — NUNCA no container
+.env
+.env.local
+
+# Testes e cobertura
+coverage.out
+coverage.html
+*.test
+
+# Git e IDE
+.git/
+.github/
+.vscode/
+.idea/
+
+# Documentação (não precisa de estar no container de produção)
+docs/
+*.md

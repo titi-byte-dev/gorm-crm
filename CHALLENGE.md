@@ -1,70 +1,78 @@
-# 🎯 CHALLENGE — Módulo 07: Arquitectura MVC em Camadas
+# 🎯 CHALLENGE — Módulo 08: Docker
 
 ---
 
-### Nível 1 — Testa com mock
+### Nível 1 — Observar o impacto do multi-stage
 
-**`MockContactRepository` e teste de email duplicado**
+```bash
+# Constrói a imagem
+make docker/build
 
-Cria um mock para `contact.Repository` em `tests/unit/contact_service_test.go` e testa:
-
-```go
-func TestContactService_Create_DuplicateEmail(t *testing.T) {
-    svc := contact.NewService(newMockContactRepo(), bus)
-
-    dto := contact.CreateContactDTO{Name: "Ana", Email: "ana@x.com", ...}
-    svc.Create(ownerID, dto)           // primeiro — ok
-    _, err := svc.Create(ownerID, dto) // segundo — deve falhar com ErrConflict
-
-    if err == nil { t.Fatal("expected conflict error") }
-}
+# Compara com a imagem base de Go
+docker images | grep -E "gorm-crm|golang"
 ```
 
-Sem DB, sem servidor. Corre em < 1ms.
+A diferença deve ser ~800MB (golang) vs ~15MB (gorm-crm).
+
+**Questão:** o que aconteceria se usasses `FROM golang:1.22-alpine` no stage final em vez de `FROM alpine:3.19`?
 
 ---
 
-### Nível 2 — Experiência didáctica
+### Nível 2 — Observar o healthcheck em acção
 
-**Quebra a arquitectura propositadamente e observa o impacto**
+```bash
+make docker/up
 
-Muda o `task.Service.UpdateStatus` para aceitar `*fiber.Ctx` em vez de `task.Status`:
+# Para o postgres enquanto a api está a correr
+docker-compose stop postgres
 
-```go
-// ❌ Propositadamente errado
-func (s *Service) UpdateStatus(c *fiber.Ctx, id uuid.UUID) (*Task, error) {
-    newStatus := Status(c.Query("status"))
-    // ...
-}
+# Verifica o healthcheck
+curl http://localhost:8080/health
+# → HTTP 503 { "status": "degraded" }
+
+# Reinicia o postgres
+docker-compose start postgres
+
+# Aguarda ~10s e verifica de novo
+curl http://localhost:8080/health
+# → HTTP 200 { "status": "ok" }
 ```
 
-Tenta correr os testes unitários. O que acontece? Porquê?
-
-Reverte a mudança e escreve no teu diário o que aprendeste.
-
 ---
 
-### Nível 3 — Feature nova com arquitectura correcta
+### Nível 3 — docker-compose.test.yml
 
-**`GET /api/v1/contacts/:id/tasks`**
+Cria um `docker-compose.test.yml` que:
+1. Inicia um PostgreSQL temporário (sem volume — dados não persistem)
+2. Corre `go test ./tests/integration/...` contra esse postgres
+3. Para tudo no final
 
-Devolve as tasks associadas a um contacto.
+```yaml
+# docker-compose.test.yml
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: gorm_crm_test
+      # ...
+```
 
-A lógica certa:
-1. `task.Repository` já tem `FindByContact(contactID)` — usar
-2. Quem chama? O `contact.Handler`? O `task.Handler`? Porquê?
-3. Precisa de um novo Service method? Ou acede ao repo directo?
-
-Pensa antes de codificar. A resposta "certa" depende das tuas razões.
+Adiciona ao `Makefile`:
+```makefile
+test/integration: ## Testes de integração com Docker
+    docker-compose -f docker-compose.test.yml up --abort-on-container-exit
+```
 
 ---
 
 ## Perguntas de reflexão
 
-1. Se o Service precisar de enviar um email, onde deve estar esse código?
-2. O que significa "testabilidade" e como as camadas a melhoram?
-3. Há situações em que a separação em 3 camadas é excessiva? Quando simplificarias?
+1. O que é um "layer" no Docker e como o cache funciona?
+2. Qual a diferença entre `docker-compose stop` e `docker-compose down`?
+3. Se adicionares um ficheiro `.env` ao `.dockerignore`, como passas as variáveis de ambiente em produção?
 
 ---
 
-> Módulo seguinte: [branch-08-docker](https://github.com/titi-byte-dev/gorm-crm/tree/branch-08-docker) — Dockerfile, docker-compose e o ambiente de desenvolvimento completo
+> 🏆 **Parabéns — completaste o Nível Júnior!**
+>
+> Módulo seguinte: [branch-09-nosql](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql) — MongoDB para activity logs — início do Nível Pleno

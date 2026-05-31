@@ -1,23 +1,23 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M09 — NoSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)** &nbsp;|&nbsp;
-`branch-10-clean-code` &nbsp;|&nbsp;
-**[M11 — OOP Avançado ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)**
+**[⬅️ M15 — Design Patterns](https://github.com/titi-byte-dev/gorm-crm/tree/branch-15-patterns)** &nbsp;|&nbsp;
+`branch-16-refactoring` &nbsp;|&nbsp;
+**[M17 — Performance & Cache ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-17-performance)**
 
-`██████████░░░░░░░░░░` Módulo **10 / 18** — Nível 🔵 Pleno
+`████████████████░░░░` Módulo **16 / 18** — Nível 🔵 Pleno
 
 </div>
 
 ---
 
-# ✨ Módulo 10 — Clean Code Principles
+# 🔧 Módulo 16 — Refactoring em Go
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![Módulo](https://img.shields.io/badge/Módulo-10%20%2F%2018-blue)](.)
+[![Módulo](https://img.shields.io/badge/Módulo-16%20%2F%2018-blue)](.)
 
-> **O que foi construído:** Nenhuma feature nova. Zero comportamento alterado. O código ficou mais claro, mais seguro em compile-time e mais fácil de manter — aplicando 6 princípios Clean Code a smells reais encontrados no GoRM.
+> **O que foi construído:** Três refactorizações identificadas por code smell — loop linear substituído por set lookup, método longo decomposto com Extract Method, e if/else substituído por lookup table.
 
 ---
 
@@ -25,64 +25,154 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Identificar números mágicos e substituí-los por constantes nomeadas
-- [ ] Distinguir comentários úteis (o PORQUÊ) dos redundantes (o QUÊ)
-- [ ] Usar tipos fortes em vez de strings para valores enumerados
-- [ ] Aplicar early return para reduzir nesting
-- [ ] Extrair funções pequenas com uma única responsabilidade
+- [ ] Identificar code smells (Long Method, Duplicated Algorithm, Switch Statements)
+- [ ] Aplicar Extract Method para decompor métodos com responsabilidades misturadas
+- [ ] Substituir if/else chains por lookup tables (Replace Conditional with Map)
+- [ ] Explicar a diferença entre refactoring e reescrita
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-10-clean-code
+git checkout branch-16-refactoring
 
-# Vê o que mudou — cada commit é um princípio
-git log --oneline branch-09-nosql..branch-10-clean-code
+# Os 3 commits de refactoring
+git log --oneline branch-15-patterns..branch-16-refactoring
 
-# Compara um ficheiro antes e depois
-git diff branch-09-nosql..branch-10-clean-code -- internal/contact/service.go
+# Vê o set lookup
+git show HEAD~2 -- internal/lead/model.go
+
+# Vê o Extract Method
+git show HEAD~1 -- internal/deal/service.go
+
+# Vê a lookup table
+git show HEAD -- internal/lead/service.go
 ```
 
 ---
 
-## 🗺️ Os 6 Princípios Aplicados
+## 🗺️ Os 3 Refactorings
 
 ```mermaid
 flowchart TD
-    C1["1️⃣ Sem números mágicos\n90*24*3600 → logRetentionSecs\n500 → DefaultBufferSize"]
-    C2["2️⃣ Map > Switch crescente\nvalidação: switch → map\nOpen/Closed Principle"]
-    C3["3️⃣ Tipos fortes > strings\nEntityType em vez de 'contact'\nCompilador verifica"]
-    C4["4️⃣ Comentários = PORQUÊ\nRemover os que dizem O QUÊ\nManter os de decisão de design"]
-    C5["5️⃣ Early return\nconnectMongo extrai e usa return nil\nHappy path à esquerda"]
-    C6["6️⃣ Uma responsabilidade\napplyUpdates extraído de Update\nCada função faz uma coisa"]
+    A["🔧 Refactoring"]
 
-    C1 --- C2 --- C3
-    C4 --- C5 --- C6
+    A --> T["Replace Loop with Set Lookup\nlead/model.go + deal/model.go\nmap[T][]T + loop → map[T]map[T]bool\nO(n) → O(1)"]
+    A --> E["Extract Method\ndeal/service.go\nMoveStage → stampClosedAt + publishDealEvent\nUma responsabilidade por função"]
+    A --> L["Replace Conditional with Map\nlead/service.go\nif/else → leadEventByStatus map\nAdicionar status = adicionar linha"]
 ```
 
 ---
 
-## 🔍 Exemplo mais impactante — tipos fortes
+## 🔍 Refactoring 1 — Replace Loop with Set Lookup
 
 > [!IMPORTANT]
-> Mudar `string` para `EntityType` parece cosmético mas tem consequências reais.
+> "Code smell: Algoritmo duplicado em dois packages com a mesma estrutura map+loop."
 
 ```go
-// ❌ Antes — typo passa no compilador, falha em runtime
-repo.FindByEntity("contcat", id, 50)  // silencioso, devolve vazio
+// ❌ Antes — aloca slice, itera, compara
+func (s Status) CanTransitionTo(next Status) bool {
+    transitions := map[Status][]Status{
+        StatusNew: {StatusContacted, StatusLost},
+        // ...
+    }
+    for _, allowed := range transitions[s] {  // loop desnecessário
+        if allowed == next {
+            return true
+        }
+    }
+    return false
+}
 
-// ✅ Depois — erro de compilação imediato
-repo.FindByEntity(EntityContcat, id, 50)
-// → undefined: EntityContcat  ← o compilador encontra antes de correr
+// ✅ Depois — set lookup direto, O(1)
+var leadTransitions = map[Status]map[Status]bool{
+    StatusNew: {StatusContacted: true, StatusLost: true},
+    // ...
+}
+
+func (s Status) CanTransitionTo(next Status) bool {
+    return leadTransitions[s][next]  // uma linha
+}
+```
+
+**Por que package-level?** A tabela é imutável após init. Declarada uma vez, partilhada por todas as chamadas — sem alocação por chamada.
+
+---
+
+## 🔍 Refactoring 2 — Extract Method
+
+> [!NOTE]
+> "Code smell: Long Method — MoveStage fazia 4 coisas diferentes no mesmo corpo."
+
+```go
+// ❌ Antes — um método, 4 responsabilidades
+func (s *Service) MoveStage(id uuid.UUID, newStage Stage) (*Deal, error) {
+    // 1. buscar
+    // 2. validar transição
+    // 3. carimbar ClosedAt (lógica de negócio inline)
+    if newStage.IsClosed() {
+        now := time.Now()
+        deal.ClosedAt = &now
+    }
+    // 4. selecionar e publicar evento (mais lógica inline)
+    evtType := events.DealLost
+    if newStage == StageWon { evtType = events.DealWon }
+    if newStage.IsClosed() { s.bus.Publish(...) }
+}
+
+// ✅ Depois — cada função tem uma razão para mudar
+func (s *Service) MoveStage(id uuid.UUID, newStage Stage) (*Deal, error) {
+    deal, err := s.repo.FindByID(id)
+    // ...validar...
+    deal.Stage = newStage
+    stampClosedAt(deal)          // Extract Method
+    updated, err := s.repo.Update(deal)
+    s.publishDealEvent(updated)  // Extract Method
+    return updated, nil
+}
+
+func stampClosedAt(d *Deal) { /* ... */ }
+func (s *Service) publishDealEvent(d *Deal) { /* ... */ }
 ```
 
 ---
 
-## 📖 Documento de referência
+## 🔍 Refactoring 3 — Replace Conditional with Map
 
-Ver [`docs/clean-code-examples.md`](docs/clean-code-examples.md) — todos os 6 princípios com código real antes/depois, regra de aplicação e quando usar.
+> [!TIP]
+> "Code smell: Switch/if-else que cresce com novos estados — Open/Closed violado."
+
+```go
+// ❌ Antes — novo status = novo ramo no if/else
+if newStatus == StatusLost {
+    s.bus.Publish(events.Event{Type: events.LeadLost, ...})
+} else if newStatus == StatusQualified {
+    s.bus.Publish(events.Event{Type: events.LeadConverted, ...})
+}
+
+// ✅ Depois — novo status = nova linha na tabela
+var leadEventByStatus = map[Status]events.EventType{
+    StatusLost:      events.LeadLost,
+    StatusQualified: events.LeadConverted,
+}
+
+func (s *Service) publishStatusEvent(l *Lead, status Status) {
+    evtType, ok := leadEventByStatus[status]
+    if !ok { return }
+    s.bus.Publish(events.Event{Type: evtType, Payload: l, UserID: l.OwnerID.String()})
+}
+```
+
+---
+
+## 📊 Code Smells → Técnicas
+
+| Code Smell | Onde | Técnica Aplicada |
+|------------|------|-----------------|
+| Duplicated Algorithm | `lead/model.go`, `deal/model.go` | Replace Loop with Set |
+| Long Method | `deal/service.go` — MoveStage | Extract Method |
+| Switch Statements | `lead/service.go` — UpdateStatus | Replace Conditional with Map |
 
 ---
 
@@ -90,26 +180,26 @@ Ver [`docs/clean-code-examples.md`](docs/clean-code-examples.md) — todos os 6 
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Encontra mais 2 números mágicos no codebase e substitui por constantes
-- **Nível 2** — Encontra um comentário que explica O QUÊ e tenta renomear o código para torná-lo desnecessário
-- **Nível 3** — Aplica early return a uma função no codebase que ainda usa if/else aninhado
+- **Nível 1** — Aplica Replace Conditional with Map no `deal/service.go` para o evento de MoveStage
+- **Nível 2** — `activitylog/service.go` tem `entityTypeFromEventType` com um switch longo — extrai para lookup table
+- **Nível 3** — `Filters.SetDefaults()` está duplicado em `lead` e `deal` — o que fariais?
 
 ---
 
 ## ✅ Checklist antes de avançar
 
-- [ ] `git log --oneline branch-09-nosql..branch-10-clean-code` — leste todos os 7 commits?
-- [ ] Consegues explicar a diferença entre um comentário PORQUÊ e um comentário QUÊ?
-- [ ] Sabes porque `EntityType` é mais seguro que `string` para valores enumerados?
-- [ ] Leste `docs/clean-code-examples.md` com os antes/depois?
+- [ ] Consegues nomear os 3 code smells que foram resolvidos?
+- [ ] Sabes a diferença entre Extract Method e Extract Class?
+- [ ] Entendes por que a tabela de transições é package-level e não criada por chamada?
+- [ ] Consegues identificar o próximo code smell no codebase?
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M09 — NoSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)** &nbsp;|&nbsp;
-`10 / 18` &nbsp;|&nbsp;
-**[M11 — OOP Avançado ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)**
+**[⬅️ M15 — Design Patterns](https://github.com/titi-byte-dev/gorm-crm/tree/branch-15-patterns)** &nbsp;|&nbsp;
+`16 / 18` &nbsp;|&nbsp;
+**[M17 — Performance & Cache ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-17-performance)**
 
 </div>

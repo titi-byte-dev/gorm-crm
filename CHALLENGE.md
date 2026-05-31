@@ -1,58 +1,93 @@
-# 🎯 CHALLENGE — Módulo 10: Clean Code Principles
+# 🎯 CHALLENGE — Módulo 16: Refactoring
 
 ---
 
-### Nível 1 — Caça aos números mágicos
+### Nível 1 — Replace Conditional with Map em deal.MoveStage
 
-Encontra mais 2 números mágicos no codebase que ainda não foram nomeados:
+`deal/service.go` ainda tem um if/else para selecionar o evento na `publishDealEvent`:
 
-```bash
-# Procura por números literais no código Go
-grep -rn "[0-9]\+" internal/ pkg/ cmd/ --include="*.go" | grep -v "_test.go" | grep -v "//.*[0-9]"
-```
-
-Para cada um que encontrares:
-1. Percebe o que representa
-2. Dá-lhe um nome descritivo
-3. Define como constante no ficheiro adequado
-
----
-
-### Nível 2 — Renomear em vez de comentar
-
-Encontra um comentário no codebase que explica O QUÊ o código faz (não o PORQUÊ).
-Tenta **renomear** uma variável, função ou tipo para tornar o comentário desnecessário.
-
-Exemplo do tipo de coisa a procurar:
 ```go
-// verifica se o token expirou
-if time.Now().After(exp) { ... }
-
-// Solução: extrair para função com nome expressivo
-if tokenIsExpired(exp) { ... }
+evtType := events.DealLost
+if d.Stage == StageWon {
+    evtType = events.DealWon
+}
 ```
+
+Aplica o mesmo padrão de lookup table que usámos em `lead/service.go`:
+
+```go
+var dealEventByStage = map[Stage]events.EventType{
+    StageWon:  events.DealWon,
+    StageLost: events.DealLost,
+}
+```
+
+> **Pergunta:** Se adicionarmos `StageNegotiation: events.DealNegotiating` à tabela, o código de publicação muda? O que é que isso te diz sobre o padrão?
 
 ---
 
-### Nível 3 — Early return num handler
+### Nível 2 — Extract to Lookup Table em activitylog
 
-Olha para os handlers em `internal/*/handler.go`. Encontra um que tenha um `if/else` onde o else podia ser evitado com early return ou extracção de função.
+`activitylog/service.go` tem `entityTypeFromEventType` com um switch de 8 casos:
 
-Refactora-o mantendo o comportamento exactamente igual.
-Verifica com:
-```bash
-go test ./...
-# comportamento não mudou
+```go
+func entityTypeFromEventType(et events.EventType) EntityType {
+    switch et {
+    case events.ContactCreated, events.ContactUpdated, events.ContactDeleted:
+        return EntityContact
+    // ...
+    }
+}
 ```
+
+Substitui por uma lookup table. Atenção: vários event types mapeiam para o mesmo EntityType.
+
+```go
+var entityByEventType = map[events.EventType]EntityType{
+    events.ContactCreated: EntityContact,
+    events.ContactUpdated: EntityContact,
+    // ...
+}
+```
+
+> **Pergunta:** A versão com switch agrupa visualmente os eventos por entidade. A versão com map perde essa estrutura. Como resolvias o trade-off entre legibilidade e extensibilidade?
+
+---
+
+### Nível 3 — Eliminar Duplicação em Filters.SetDefaults
+
+`lead.Filters` e `deal.Filters` têm `SetDefaults()` quase idênticos:
+
+```go
+// lead/model.go         deal/model.go
+func (f *Filters) SetDefaults() {
+    if f.Page <= 0 { f.Page = 1 }
+    if f.Limit <= 0 || f.Limit > 100 { f.Limit = 20 }
+    if f.SortBy == "" { f.SortBy = "created_at" }
+    if f.SortDir == "" { f.SortDir = "desc" }
+}
+```
+
+Três abordagens possíveis — analisa cada uma:
+
+1. **Embedding**: criar `shared.PaginationFilters` com `SetDefaults()` e embeder em `lead.Filters` e `deal.Filters`
+2. **Função livre**: `shared.SetFilterDefaults(page, limit *int, sortBy, sortDir *string)`
+3. **Deixar como está**: duplicação tolerável se os domínios divergirem
+
+> **Pergunta:** Qual das três abordagens escolherias? Porquê? Em que condições mudarias de opinião?
 
 ---
 
 ## Perguntas de reflexão
 
-1. Há situações em que um comentário que explica O QUÊ é aceitável? (pensa em código de performance crítica com operações de bit)
-2. Porque é que `type EntityType string` em vez de `type EntityType int`? Qual a diferença na prática?
-3. O princípio "funções pequenas" tem um limite? Quando é que extrair mais funções piora o código?
+1. **Refactoring vs Reescrita:** Qual é a diferença prática? Quando é que um "refactoring" se torna uma reescrita?
+
+2. **Testes como rede de segurança:** Os unit tests de M14 permitiram fazer estes refactorings com confiança. O que aconteceria sem eles?
+
+3. **Package-level vs local:** `leadTransitions` é declarada a nível de package. Que trade-offs tem essa decisão (visibilidade, testabilidade, thread-safety)?
+
+4. **Mikado Method:** Se quisesses refactorizar `Filters.SetDefaults()` para partilhado, por onde começarias? Que dependências precisariam de mudar primeiro?
 
 ---
 
-> Módulo seguinte: [branch-11-oop](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop) — OOP Avançado: interfaces, composição e DRY/KISS/YAGNI
+> Módulo seguinte: [branch-17-performance](https://github.com/titi-byte-dev/gorm-crm/tree/branch-17-performance) — Performance & Cache: índices, N+1, e cache com Redis

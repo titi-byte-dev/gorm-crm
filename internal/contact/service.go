@@ -76,7 +76,7 @@ func (s *Service) GetByID(id uuid.UUID) (*Contact, error) {
 	return contact, nil
 }
 
-func (s *Service) List(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, error) {
+func (s *Service) List(ownerID uuid.UUID, filters Filters) (Contacts, int64, error) {
 	contacts, total, err := s.repo.FindAll(ownerID, filters)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list contacts: %w", err)

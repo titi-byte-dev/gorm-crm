@@ -7,6 +7,41 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/pkg/pagination"
 )
 
+// Contacts e uma coleccao de primeiro nivel — nao e apenas um slice.
+// Object Calisthenics — Regra 4: First-class collections.
+// Encapsula a iteracao e expoe comportamento de dominio em vez de expor o slice.
+type Contacts []*Contact
+
+// IDs devolve os UUIDs de todos os contactos.
+func (cs Contacts) IDs() []uuid.UUID {
+	ids := make([]uuid.UUID, len(cs))
+	for i, c := range cs {
+		ids[i] = c.ID
+	}
+	return ids
+}
+
+// FilterByCompany devolve apenas os contactos da empresa dada.
+func (cs Contacts) FilterByCompany(company string) Contacts {
+	var result Contacts
+	for _, c := range cs {
+		if c.Company == company {
+			result = append(result, c)
+		}
+	}
+	return result
+}
+
+// HasEmail verifica se algum contacto tem o email dado.
+func (cs Contacts) HasEmail(email string) bool {
+	for _, c := range cs {
+		if c.Email == email {
+			return true
+		}
+	}
+	return false
+}
+
 // Contact representa um contacto no CRM.
 type Contact struct {
 	ID        uuid.UUID `json:"id"`
@@ -24,7 +59,7 @@ type Contact struct {
 // Um servico de relatorios pode receber apenas Reader — superficie minima.
 type Reader interface {
 	FindByID(id uuid.UUID) (*Contact, error)
-	FindAll(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, error)
+	FindAll(ownerID uuid.UUID, filters Filters) (Contacts, int64, error)
 	FindByEmail(email string) (*Contact, error)
 }
 

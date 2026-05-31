@@ -59,7 +59,7 @@ func (r *postgresRepository) FindByEmail(email string) (*Contact, error) {
 	return recordToContact(rec), nil
 }
 
-func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, error) {
+func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) (Contacts, int64, error) {
 	filters.SetDefaults()
 
 	query := r.db.Model(&contactRecord{}).Where("owner_id = ?", ownerID)
@@ -87,7 +87,7 @@ func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) ([]*Con
 		return nil, 0, fmt.Errorf("list contacts: %w", err)
 	}
 
-	contacts := make([]*Contact, len(records))
+	contacts := make(Contacts, len(records))
 	for i, rec := range records {
 		contacts[i] = recordToContact(rec)
 	}

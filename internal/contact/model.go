@@ -23,6 +23,9 @@ type Contact struct {
 // A implementação concreta (PostgreSQL, mock para testes) fica noutro ficheiro.
 type Repository interface {
 	FindByID(id uuid.UUID) (*Contact, error)
+	// FindByIDs carrega múltiplos contactos numa única query WHERE id IN (...).
+	// Usar quando se tem uma lista de IDs (e.g., de leads ou deals) para evitar N+1.
+	FindByIDs(ids []uuid.UUID) ([]*Contact, error)
 	FindAll(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, error)
 	FindByEmail(email string) (*Contact, error)
 	Save(contact *Contact) (*Contact, error)

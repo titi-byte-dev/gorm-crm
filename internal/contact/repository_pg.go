@@ -60,6 +60,21 @@ func (r *postgresRepository) FindByEmail(email string) (*Contact, error) {
 	return recordToContact(rec), nil
 }
 
+func (r *postgresRepository) FindByIDs(ids []uuid.UUID) ([]*Contact, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var records []contactRecord
+	if err := r.db.Where("id IN ?", ids).Find(&records).Error; err != nil {
+		return nil, fmt.Errorf("find contacts by ids: %w", err)
+	}
+	contacts := make([]*Contact, len(records))
+	for i, rec := range records {
+		contacts[i] = recordToContact(rec)
+	}
+	return contacts, nil
+}
+
 func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, error) {
 	filters.SetDefaults()
 

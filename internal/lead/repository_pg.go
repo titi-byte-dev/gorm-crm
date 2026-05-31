@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
+	"github.com/titi-byte-dev/gorm-crm/pkg/valueobject"
 	"gorm.io/gorm"
 )
 
@@ -112,7 +113,7 @@ func (r *postgresRepository) Delete(id uuid.UUID) error {
 
 func recordToLead(r leadRecord) *Lead {
 	return &Lead{
-		ID: r.ID, Title: r.Title, Value: r.Value,
+		ID: r.ID, Title: r.Title, Value: valueobject.Money(r.Value),
 		Status: Status(r.Status), ContactID: r.ContactID, OwnerID: r.OwnerID,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
@@ -120,7 +121,7 @@ func recordToLead(r leadRecord) *Lead {
 
 func leadToRecord(l *Lead) leadRecord {
 	return leadRecord{
-		ID: l.ID, Title: l.Title, Value: l.Value,
+		ID: l.ID, Title: l.Title, Value: l.Value.Float64(),
 		Status: string(l.Status), ContactID: l.ContactID, OwnerID: l.OwnerID,
 	}
 }

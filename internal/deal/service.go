@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
+	"github.com/titi-byte-dev/gorm-crm/pkg/valueobject"
 )
 
 type Service struct {
@@ -26,9 +27,13 @@ type CreateDealDTO struct {
 }
 
 func (s *Service) Create(ownerID uuid.UUID, dto CreateDealDTO) (*Deal, error) {
+	value, err := valueobject.ParseMoney(dto.Value)
+	if err != nil {
+		return nil, fmt.Errorf("create deal: %w", err)
+	}
 	deal := &Deal{
 		Title:     dto.Title,
-		Value:     dto.Value,
+		Value:     value,
 		Stage:     StageProposal,
 		ContactID: dto.ContactID,
 		LeadID:    dto.LeadID,

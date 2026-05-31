@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/titi-byte-dev/gorm-crm/pkg/pagination"
+	"github.com/titi-byte-dev/gorm-crm/pkg/valueobject"
 )
 
 // Stage representa a etapa de um negócio no pipeline de vendas.
@@ -59,10 +60,10 @@ func (s Stage) CanTransitionTo(next Stage) bool {
 
 // Deal representa um negócio em curso no CRM.
 type Deal struct {
-	ID        uuid.UUID  `json:"id"`
-	Title     string     `json:"title"`
-	Value     float64    `json:"value"`
-	Stage     Stage      `json:"stage"`
+	ID        uuid.UUID         `json:"id"`
+	Title     string            `json:"title"`
+	Value     valueobject.Money `json:"value"`
+	Stage     Stage             `json:"stage"`
 	LeadID    *uuid.UUID `json:"lead_id,omitempty"` // pointer — pode ser nil (deal sem lead)
 	ContactID uuid.UUID  `json:"contact_id"`
 	OwnerID   uuid.UUID  `json:"owner_id"`

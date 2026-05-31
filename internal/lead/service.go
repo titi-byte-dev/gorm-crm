@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
+	"github.com/titi-byte-dev/gorm-crm/pkg/valueobject"
 )
 
 type Service struct {
@@ -30,9 +31,13 @@ type UpdateLeadDTO struct {
 }
 
 func (s *Service) Create(ownerID uuid.UUID, dto CreateLeadDTO) (*Lead, error) {
+	value, err := valueobject.ParseMoney(dto.Value)
+	if err != nil {
+		return nil, fmt.Errorf("create lead: %w", err)
+	}
 	lead := &Lead{
 		Title:     dto.Title,
-		Value:     dto.Value,
+		Value:     value,
 		Status:    StatusNew,
 		ContactID: dto.ContactID,
 		OwnerID:   ownerID,

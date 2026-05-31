@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/titi-byte-dev/gorm-crm/pkg/pagination"
+	"github.com/titi-byte-dev/gorm-crm/pkg/valueobject"
 )
 
 // Status representa o estado de um lead no pipeline.
@@ -58,14 +59,14 @@ func (s Status) CanTransitionTo(next Status) bool {
 
 // Lead representa um potencial negócio no CRM.
 type Lead struct {
-	ID        uuid.UUID `json:"id"`
-	Title     string    `json:"title"`
-	Value     float64   `json:"value"`
-	Status    Status    `json:"status"`
-	ContactID uuid.UUID `json:"contact_id"`
-	OwnerID   uuid.UUID `json:"owner_id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uuid.UUID          `json:"id"`
+	Title     string             `json:"title"`
+	Value     valueobject.Money  `json:"value"`
+	Status    Status             `json:"status"`
+	ContactID uuid.UUID          `json:"contact_id"`
+	OwnerID   uuid.UUID          `json:"owner_id"`
+	CreatedAt time.Time          `json:"created_at"`
+	UpdatedAt time.Time          `json:"updated_at"`
 }
 
 // Reader define operacoes de leitura sobre Lead.

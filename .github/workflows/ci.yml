@@ -30,8 +30,47 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Test
-        run: go test -v -race -coverprofile=coverage.out ./...
+      - name: Test (unit)
+        run: go test -v -race -coverprofile=coverage.out ./tests/unit/... ./internal/...
 
       - name: Coverage summary
         run: go tool cover -func=coverage.out | tail -1
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: |
+          docker build \
+            --build-arg VERSION=ci-test \
+            --build-arg COMMIT=${{ github.sha }} \
+            --build-arg BUILDTIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            -t gorm-crm:ci .

@@ -1,23 +1,24 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M09 — NoSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)** &nbsp;|&nbsp;
-`branch-10-clean-code` &nbsp;|&nbsp;
-**[M11 — OOP Avançado ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)**
+**[⬅️ M17 — Performance & Cache](https://github.com/titi-byte-dev/gorm-crm/tree/branch-17-performance)** &nbsp;|&nbsp;
+`branch-18-cicd` &nbsp;|&nbsp;
+🏁 **Módulo Final**
 
-`██████████░░░░░░░░░░` Módulo **10 / 18** — Nível 🔵 Pleno
+`████████████████████` Módulo **18 / 18** — Nível 🔴 Sénior
 
 </div>
 
 ---
 
-# ✨ Módulo 10 — Clean Code Principles
+# 🚀 Módulo 18 — Cloud & CI/CD
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
+[![CD](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/cd.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/cd.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![Módulo](https://img.shields.io/badge/Módulo-10%20%2F%2018-blue)](.)
+[![Módulo](https://img.shields.io/badge/Módulo-18%20%2F%2018-red)](.)
 
-> **O que foi construído:** Nenhuma feature nova. Zero comportamento alterado. O código ficou mais claro, mais seguro em compile-time e mais fácil de manter — aplicando 6 princípios Clean Code a smells reais encontrados no GoRM.
+> **O que foi construído:** Pipeline CI/CD completo — build-time version injection via `-ldflags`, CD workflow que publica imagem Docker no ghcr.io em cada tag semver, e docker-compose override para desenvolvimento local com Redis.
 
 ---
 
@@ -25,64 +26,154 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Identificar números mágicos e substituí-los por constantes nomeadas
-- [ ] Distinguir comentários úteis (o PORQUÊ) dos redundantes (o QUÊ)
-- [ ] Usar tipos fortes em vez de strings para valores enumerados
-- [ ] Aplicar early return para reduzir nesting
-- [ ] Extrair funções pequenas com uma única responsabilidade
+- [ ] Injetar version/commit/buildtime no binário Go via `-ldflags`
+- [ ] Criar um CD workflow que publica imagem Docker ao criar tag `v*`
+- [ ] Separar docker-compose base (produção) de override (desenvolvimento)
+- [ ] Fazer deploy de uma nova versão com `make release TAG=v1.0.0`
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-10-clean-code
+git checkout branch-18-cicd
 
-# Vê o que mudou — cada commit é um princípio
-git log --oneline branch-09-nosql..branch-10-clean-code
+git log --oneline branch-17-performance..branch-18-cicd
 
-# Compara um ficheiro antes e depois
-git diff branch-09-nosql..branch-10-clean-code -- internal/contact/service.go
+# Version injection
+make build && ./bin/gorm-crm --version 2>/dev/null || curl localhost:8080/health
+
+# Ver o CD workflow
+cat .github/workflows/cd.yml
+
+# Dev com hot-reload
+docker-compose up -d       # usa override.yml automaticamente
 ```
 
 ---
 
-## 🗺️ Os 6 Princípios Aplicados
+## 🗺️ Os 3 Componentes
 
 ```mermaid
-flowchart TD
-    C1["1️⃣ Sem números mágicos\n90*24*3600 → logRetentionSecs\n500 → DefaultBufferSize"]
-    C2["2️⃣ Map > Switch crescente\nvalidação: switch → map\nOpen/Closed Principle"]
-    C3["3️⃣ Tipos fortes > strings\nEntityType em vez de 'contact'\nCompilador verifica"]
-    C4["4️⃣ Comentários = PORQUÊ\nRemover os que dizem O QUÊ\nManter os de decisão de design"]
-    C5["5️⃣ Early return\nconnectMongo extrai e usa return nil\nHappy path à esquerda"]
-    C6["6️⃣ Uma responsabilidade\napplyUpdates extraído de Update\nCada função faz uma coisa"]
+flowchart LR
+    A["👨‍💻 git push tag v1.0.0"]
+    B["🔄 CI — ci.yml\nbuild + vet + test\nlint + docker verify"]
+    C["📦 CD — cd.yml\ndocker build+push\nghcr.io/owner/gorm-crm:1.0.0"]
+    D["🏥 /health\nversion: v1.0.0\ncommit: abc1234"]
 
-    C1 --- C2 --- C3
-    C4 --- C5 --- C6
+    A --> B
+    A --> C
+    C --> D
 ```
 
 ---
 
-## 🔍 Exemplo mais impactante — tipos fortes
+## 🔍 Version Injection — `-ldflags`
 
 > [!IMPORTANT]
-> Mudar `string` para `EntityType` parece cosmético mas tem consequências reais.
+> "Sem version injection, `/health` devolve `'0.9.0'` hardcoded. Com ela, cada binário sabe quem é."
 
 ```go
-// ❌ Antes — typo passa no compilador, falha em runtime
-repo.FindByEntity("contcat", id, 50)  // silencioso, devolve vazio
+// pkg/version/version.go — default em desenvolvimento
+var (
+    Version   = "dev"
+    Commit    = "unknown"
+    BuildTime = "unknown"
+)
 
-// ✅ Depois — erro de compilação imediato
-repo.FindByEntity(EntityContcat, id, 50)
-// → undefined: EntityContcat  ← o compilador encontra antes de correr
+// Em runtime — valores reais injectados pelo compilador
+// $ curl localhost:8080/health
+// { "version": "v1.2.0", "commit": "a3f9b12" }
+```
+
+```makefile
+# Makefile — make build injeta automaticamente
+LDFLAGS = -s -w \
+  -X .../pkg/version.Version=$(VERSION) \
+  -X .../pkg/version.Commit=$(COMMIT) \
+  -X .../pkg/version.BuildTime=$(BUILDTIME)
+```
+
+```dockerfile
+# Dockerfile — ARGs passados pelo CI
+ARG VERSION=dev
+RUN go build -ldflags="-s -w -X .../version.Version=${VERSION} ..."
 ```
 
 ---
 
-## 📖 Documento de referência
+## 🔍 CI/CD — Dois Workflows, Duas Responsabilidades
 
-Ver [`docs/clean-code-examples.md`](docs/clean-code-examples.md) — todos os 6 princípios com código real antes/depois, regra de aplicação e quando usar.
+> [!NOTE]
+> "CI verifica cada push. CD só corre quando decides fazer release."
+
+```yaml
+# ci.yml — 3 jobs paralelos em cada push
+jobs:
+  build-and-test:  # go build + go test -race + coverage artifact
+  lint:            # golangci-lint — estilo, bugs estáticos, segurança
+  docker:          # docker build --target runtime — verifica que a imagem compila
+
+# cd.yml — triggered só em push de tag v*
+on:
+  push:
+    tags: ["v*"]
+
+# Resultado: ghcr.io/owner/gorm-crm:1.2.0
+#                                   :1.2
+#                                   :sha-a3f9b12
+```
+
+---
+
+## 🔍 docker-compose Override — Dev vs Produção
+
+> [!TIP]
+> "O ficheiro override é aplicado automaticamente. Em CI ele não existe — comportamento diferente sem flags."
+
+```yaml
+# docker-compose.yml — base (produção/CI)
+services:
+  api:
+    build:
+      target: runtime    # imagem mínima ~15MB
+
+# docker-compose.override.yml — dev (aplicado automaticamente)
+services:
+  api:
+    build:
+      target: builder    # tem Go toolchain
+    volumes:
+      - .:/app           # hot-reload: go run relê ficheiros alterados
+  redis:                 # cache activa em dev
+    image: redis:7-alpine
+```
+
+**Ciclo de release:**
+
+```bash
+# 1. Código pronto, testes a passar
+make test
+
+# 2. Criar e publicar tag — CD dispara automaticamente
+make release TAG=v1.2.0
+
+# 3. Verificar no GitHub Actions
+# 4. Imagem disponível em ghcr.io
+docker pull ghcr.io/titi-byte-dev/gorm-crm:1.2.0
+```
+
+---
+
+## 📊 Pipeline Completo
+
+| Evento | Workflow | Resultado |
+|--------|----------|-----------|
+| `git push branch-*` | CI | build + test + lint + docker verify |
+| `git push main` | CI | idem |
+| `git push tag v1.0.0` | CI + CD | CI passa → CD publica imagem |
+| `docker-compose up` (dev) | — | override ativo, Redis, hot-reload |
+| `docker-compose up` (CI) | — | sem override, imagem runtime |
 
 ---
 
@@ -90,26 +181,30 @@ Ver [`docs/clean-code-examples.md`](docs/clean-code-examples.md) — todos os 6 
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Encontra mais 2 números mágicos no codebase e substitui por constantes
-- **Nível 2** — Encontra um comentário que explica O QUÊ e tenta renomear o código para torná-lo desnecessário
-- **Nível 3** — Aplica early return a uma função no codebase que ainda usa if/else aninhado
+- **Nível 1** — Adiciona `make version` e verifica que os valores são injectados no binário
+- **Nível 2** — Adiciona um job `security` ao CI com `govulncheck ./...`
+- **Nível 3** — Estende o CD para deploy automático num servidor remoto via SSH após push da imagem
 
 ---
 
-## ✅ Checklist antes de avançar
+## ✅ Checklist — Curso Completo
 
-- [ ] `git log --oneline branch-09-nosql..branch-10-clean-code` — leste todos os 7 commits?
-- [ ] Consegues explicar a diferença entre um comentário PORQUÊ e um comentário QUÊ?
-- [ ] Sabes porque `EntityType` é mais seguro que `string` para valores enumerados?
-- [ ] Leste `docs/clean-code-examples.md` com os antes/depois?
+- [ ] M01–M06: Fundamentos Go, GORM, REST, Auth, Migrations, NoSQL
+- [ ] M07–M10: Events, Middlewares, Clean Architecture, Clean Code
+- [ ] M11–M13: OOP, Object Calisthenics, DDD
+- [ ] M14–M15: Testes Automatizados, Design Patterns
+- [ ] M16–M17: Refactoring, Performance & Cache
+- [ ] M18: Cloud & CI/CD ← estás aqui
+
+**Conseguiste construir um CRM production-ready do zero. Cada módulo adicionou uma camada — de CRUD simples a pipeline CI/CD completo.**
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M09 — NoSQL](https://github.com/titi-byte-dev/gorm-crm/tree/branch-09-nosql)** &nbsp;|&nbsp;
-`10 / 18` &nbsp;|&nbsp;
-**[M11 — OOP Avançado ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)**
+**[⬅️ M17 — Performance & Cache](https://github.com/titi-byte-dev/gorm-crm/tree/branch-17-performance)** &nbsp;|&nbsp;
+`18 / 18` &nbsp;|&nbsp;
+🏁 **Fim do Curso**
 
 </div>

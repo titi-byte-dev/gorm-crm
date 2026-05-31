@@ -33,7 +33,7 @@ func (h *Handler) MyActivity(c *fiber.Ctx) error {
 // GET /activity/contact/<uuid> → todos os eventos deste contacto
 // GET /activity/deal/<uuid>    → todos os eventos deste deal
 func (h *Handler) EntityActivity(c *fiber.Ctx) error {
-	entityType := c.Params("entity_type")
+	entityType := EntityType(c.Params("entity_type"))
 	entityID := c.Params("entity_id")
 	limit := c.QueryInt("limit", 50)
 

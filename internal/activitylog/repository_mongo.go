@@ -66,7 +66,7 @@ func (r *mongoRepository) Save(log *Log) error {
 	return nil
 }
 
-func (r *mongoRepository) FindByEntity(entityType, entityID string, limit int) ([]*Log, error) {
+func (r *mongoRepository) FindByEntity(entityType EntityType, entityID string, limit int) ([]*Log, error) {
 	if limit <= 0 {
 		limit = defaultResultLimit
 	}

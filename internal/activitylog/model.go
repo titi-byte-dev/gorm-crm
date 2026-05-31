@@ -6,6 +6,19 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// EntityType identifica o tipo de entidade afectada por um log.
+// Tipo forte em vez de string literal — o compilador verifica os valores.
+type EntityType string
+
+const (
+	EntityContact EntityType = "contact"
+	EntityLead    EntityType = "lead"
+	EntityDeal    EntityType = "deal"
+	EntityTask    EntityType = "task"
+	EntityUser    EntityType = "user"
+	EntityUnknown EntityType = "unknown"
+)
+
 // Log representa uma entrada no histórico de actividade do CRM.
 //
 // Porquê usar any (interface{}) para Payload?
@@ -18,11 +31,9 @@ import (
 // ou de uma coluna JSON. No MongoDB, cada documento pode ter estrutura
 // diferente — é a flexibilidade que faz o Document Store valer a pena.
 type Log struct {
-	// primitive.ObjectID é o tipo nativo do MongoDB para _id
-	// Diferente do uuid.UUID que usamos no PostgreSQL
 	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Action     string             `bson:"action"        json:"action"`
-	EntityType string             `bson:"entity_type"   json:"entity_type"`
+	EntityType EntityType         `bson:"entity_type"   json:"entity_type"`
 	EntityID   string             `bson:"entity_id"     json:"entity_id"`
 	UserID     string             `bson:"user_id"       json:"user_id"`
 	Payload    any                `bson:"payload"       json:"payload"`
@@ -30,16 +41,15 @@ type Log struct {
 }
 
 // Repository define o contrato de acesso para ActivityLog.
-// A implementação usa MongoDB; em testes usamos um mock em memória.
 type Repository interface {
 	Save(log *Log) error
-	FindByEntity(entityType, entityID string, limit int) ([]*Log, error)
+	FindByEntity(entityType EntityType, entityID string, limit int) ([]*Log, error)
 	FindByUser(userID string, limit int) ([]*Log, error)
 }
 
 // Filters para queries de logs.
 type Filters struct {
-	EntityType string
+	EntityType EntityType
 	EntityID   string
 	UserID     string
 	Limit      int

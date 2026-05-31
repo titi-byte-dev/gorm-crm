@@ -1,63 +1,66 @@
-# 🎯 CHALLENGE — Módulo 04: Git Workflow
+# 🎯 CHALLENGE — Módulo 05: REST API Completa
 
 ---
 
-## Desafios
-
 ### Nível 1 — Obrigatório
 
-**Ativa o commit template e faz um commit "a sério"**
+**`GET /api/v1/contacts/:id/leads`**
+
+Lista todos os leads de um contacto específico. Usa `lead.Repository.FindByContact()`.
 
 ```bash
-make setup
-# Edita qualquer ficheiro (ex: adiciona um comentário ao README)
-git add -p
-git commit     # abre o editor com o template
+curl http://localhost:8080/api/v1/contacts/<contact-id>/leads
+# → [{ lead1 }, { lead2 }, ...]
 ```
-
-Escreve um commit com tipo, escopo e descrição válidos. Experimenta preencher o body também.
 
 ---
 
 ### Nível 2 — Exploração
 
-**Dois commits a partir de um ficheiro com duas mudanças**
+**`GET /api/v1/pipeline`**
 
-1. Abre `internal/contact/service.go`
-2. Faz duas mudanças não relacionadas (ex: adiciona um método + muda uma mensagem de erro)
-3. Usa `git add -p` para separar as duas mudanças
-4. Faz dois commits distintos, cada um com o seu tipo e escopo
+Devolve um resumo do pipeline de vendas:
 
-Verifica com `git log --oneline` que tens dois commits limpos.
+```json
+{
+  "proposal":    { "count": 5, "total_value": 25000 },
+  "negotiation": { "count": 3, "total_value": 18000 },
+  "won":         { "count": 12, "total_value": 67000 },
+  "lost":        { "count": 4, "total_value": 9000 }
+}
+```
+
+Dica: usa `db.Model(&dealRecord{}).Select("stage, count(*), sum(value)").Group("stage").Find(&result)`
 
 ---
 
-### Nível 3 — Investigação
+### Nível 3 — Rate Limiting
 
-**Cria uma branch de desafio e abre um PR**
+Adiciona um middleware de rate limiting: máximo 100 requests por minuto por IP.
 
-```bash
-git checkout branch-03-sql
-git checkout -b meu-desafio-m03-stats
+Fiber tem `middleware/limiter` built-in:
+
+```go
+app.Use(limiter.New(limiter.Config{
+    Max:        100,
+    Expiration: 1 * time.Minute,
+}))
 ```
 
-Implementa o endpoint `GET /api/v1/contacts/stats` do Challenge do M03.
-
-Depois:
+Testa com um loop:
 ```bash
-git push origin meu-desafio-m03-stats
-gh pr create --base branch-03-sql --head meu-desafio-m03-stats \
-  --title "challenge(m03): add contacts stats endpoint"
+for i in {1..110}; do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/health; done
+# Deve ver 200 nos primeiros 100 e 429 nos seguintes
 ```
 
 ---
 
 ## Perguntas de reflexão
 
-1. Qual a diferença entre `git merge` e `git rebase`? Quando usarias cada um?
-2. O que é um "squash merge" e que vantagens tem para manter o histórico limpo?
-3. Porque é que `git add .` pode ser perigoso em projetos reais?
+1. Porque é que `PATCH /leads/:id/status` é melhor que `PUT /leads/:id` para mudar estado?
+2. O que é idempotência numa API REST? Quais dos teus endpoints são idempotentes?
+3. Qual a diferença entre `400 Bad Request` e `422 Unprocessable Entity`?
 
 ---
 
-> Módulo seguinte: [branch-05-rest-api](https://github.com/titi-byte-dev/gorm-crm/tree/branch-05-rest-api) — API REST completa, middlewares e paginação
+> Módulo seguinte: [branch-06-auth](https://github.com/titi-byte-dev/gorm-crm/tree/branch-06-auth) — JWT, bcrypt, refresh tokens e RBAC

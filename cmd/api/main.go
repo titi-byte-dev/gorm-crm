@@ -10,6 +10,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/titi-byte-dev/gorm-crm/internal/contact"
+	"github.com/titi-byte-dev/gorm-crm/internal/deal"
+	"github.com/titi-byte-dev/gorm-crm/internal/lead"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/middleware"
@@ -39,7 +41,7 @@ func main() {
 	bus.Start(ctx)
 
 	app := fiber.New(fiber.Config{
-		AppName:      "GoRM CRM v0.3.0",
+		AppName:      "GoRM CRM v0.5.0",
 		ErrorHandler: sharederrors.Handler,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -47,12 +49,12 @@ func main() {
 
 	app.Use(recover.New())
 	app.Use(middleware.Logger())
+	app.Use(middleware.CORS())
 
 	registerRoutes(app, db, bus)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
 	go func() {
 		<-quit
 		log.Info("shutting down server...")
@@ -75,19 +77,15 @@ func main() {
 }
 
 func registerRoutes(app *fiber.App, db *gorm.DB, bus *events.Bus) {
-	app.Get("/health", healthHandler)
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok", "service": "gorm-crm", "version": "0.5.0"})
+	})
 
 	v1 := app.Group("/api/v1")
 
-	contactRepo := contact.NewPostgresRepository(db)
-	contactSvc := contact.NewService(contactRepo, bus)
-	contact.RegisterRoutes(v1, contactSvc)
-}
-
-func healthHandler(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{
-		"status":  "ok",
-		"service": "gorm-crm",
-		"version": "0.3.0",
-	})
+	contact.RegisterRoutes(v1, contact.NewService(contact.NewPostgresRepository(db), bus))
+	lead.RegisterRoutes(v1, lead.NewService(lead.NewPostgresRepository(db), bus))
+	deal.RegisterRoutes(v1, deal.NewService(deal.NewPostgresRepository(db), bus))
+	// M06: auth.RegisterRoutes(v1, ...)
+	// M07: task.RegisterRoutes(v1, ...)
 }

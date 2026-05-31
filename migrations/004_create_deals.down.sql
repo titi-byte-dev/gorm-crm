@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS deals;
+DROP TYPE IF EXISTS deal_stage;

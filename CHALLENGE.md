@@ -1,13 +1,4 @@
-# 🎯 CHALLENGE — Módulo 02: Fundamentos Go
-
----
-
-## O que já tens
-
-- Domain models completos: `Contact`, `Lead`, `Deal`, `Task`, `User`
-- Repository interfaces definidas para cada domínio
-- Event Bus com goroutines e channels
-- Table-driven tests para `Lead.Status` e `Task.IsOverdue`
+# 🎯 CHALLENGE — Módulo 03: SQL & PostgreSQL
 
 ---
 
@@ -15,86 +6,57 @@
 
 ### Nível 1 — Obrigatório
 
-**1.1 — Método `Contact.DisplayName()`**
+**Adiciona `GET /api/v1/contacts/stats`**
 
-Adiciona ao model `Contact` um método que devolve uma representação legível:
+Endpoint que devolve estatísticas dos contactos do owner:
 
-```go
-// Se tiver empresa: "João Silva (Acme Corp)"
-// Se não tiver: "João Silva"
-func (c Contact) DisplayName() string { ... }
+```json
+{
+  "total": 42,
+  "by_company": [
+    { "company": "Acme",  "count": 12 },
+    { "company": "Globo", "count": 8  }
+  ]
+}
 ```
 
-Escreve um table-driven test para cobrir ambos os casos.
-
----
-
-**1.2 — Validação de email no model**
-
-Adiciona um método `Contact.ValidateEmail() error` que verifica se o email tem formato válido usando apenas a stdlib Go (package `regexp` ou `strings`).
-
-```go
-contact := Contact{Email: "nao-e-email"}
-err := contact.ValidateEmail()
-// err != nil
-```
+Dica: usa `db.Model(&contactRecord{}).Select("company, count(*) as count").Group("company").Find(&result)`
 
 ---
 
 ### Nível 2 — Exploração
 
-**2.1 — Implementa um `MockContactRepository`**
+**Soft Delete**
 
-Cria um mock que implementa `contact.Repository` usando um `map` em memória:
+Em vez de apagar o registo, adiciona um campo `deleted_at *time.Time`. O `DELETE /contacts/:id` preenche esse campo. O `GET /contacts` só devolve registos onde `deleted_at IS NULL`.
 
-```go
-type MockContactRepository struct {
-    contacts map[uuid.UUID]*contact.Contact
-    // Como garantir que o mock satisfaz a interface em compile-time?
-    // Dica: var _ contact.Repository = (*MockContactRepository)(nil)
-}
-```
-
-Escreve um teste que usa o mock para testar uma função que recebe `contact.Repository`.
+GORM suporta isto nativamente com `gorm.Model` — investiga como.
 
 ---
 
-**2.2 — Adiciona `Deal.DurationDays()`**
+### Nível 3 — Transações
 
-Método que calcula quantos dias um deal esteve aberto (entre `CreatedAt` e `ClosedAt`).
-Se ainda estiver aberto, calcula até ao momento atual.
+**Criar Lead automaticamente ao criar Contacto**
 
-```go
-deal.DurationDays() // int
-```
-
----
-
-### Nível 3 — Investigação
-
-**3.1 — Goroutine leak**
-
-Cria um programa simples que demonstra um goroutine leak (goroutine que nunca termina).
-Depois corrige-o usando `context.WithCancel`.
-
-Usa `runtime.NumGoroutine()` para verificar antes e depois.
-
-**3.2 — Interface satisfaction em compile-time**
-
-Investiga este padrão e explica porque é útil:
+Quando se cria um Contacto, cria também um Lead associado na mesma transação — se o Lead falhar, o Contacto não é criado.
 
 ```go
-var _ contact.Repository = (*PostgreSQLContactRepository)(nil)
+err := db.Transaction(func(tx *gorm.DB) error {
+    // 1. criar contacto com tx
+    // 2. criar lead com tx
+    // se qualquer um falhar, ambos são revertidos
+    return nil
+})
 ```
 
 ---
 
 ## Perguntas de reflexão
 
-1. Porque é que Go usa interfaces implícitas em vez de `implements` explícito?
-2. Qual a diferença entre `make(chan Event)` e `make(chan Event, 500)`? O que acontece se o channel estiver cheio?
-3. Porque é que `Task.IsOverdue()` tem receiver de valor e `Filters.SetDefaults()` tem receiver de ponteiro?
+1. Porque é que separamos `contactRecord` (GORM) de `Contact` (domain)?
+2. O que acontece se correres a migration `002` sem ter corrido a `001`?
+3. Qual a diferença entre `db.Save()` e `db.Updates()` no GORM?
 
 ---
 
-> Módulo seguinte: [branch-03-sql](https://github.com/titi-byte-dev/gorm-crm/tree/branch-03-sql) — PostgreSQL, GORM e CRUD de Contactos
+> Módulo seguinte: [branch-04-git-workflow](https://github.com/titi-byte-dev/gorm-crm/tree/branch-04-git-workflow)

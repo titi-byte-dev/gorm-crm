@@ -28,19 +28,15 @@ func (s Stage) IsClosed() bool {
 	return s == StageWon || s == StageLost
 }
 
+var dealTransitions = map[Stage]map[Stage]bool{
+	StageProposal:    {StageNegotiation: true, StageLost: true},
+	StageNegotiation: {StageWon: true, StageLost: true},
+	StageWon:         {},
+	StageLost:        {},
+}
+
 func (s Stage) CanTransitionTo(next Stage) bool {
-	transitions := map[Stage][]Stage{
-		StageProposal:    {StageNegotiation, StageLost},
-		StageNegotiation: {StageWon, StageLost},
-		StageWon:         {},
-		StageLost:        {},
-	}
-	for _, allowed := range transitions[s] {
-		if allowed == next {
-			return true
-		}
-	}
-	return false
+	return dealTransitions[s][next]
 }
 
 // Deal representa um negócio em curso no CRM.

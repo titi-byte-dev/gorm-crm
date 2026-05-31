@@ -26,19 +26,15 @@ func (s Status) IsValid() bool {
 
 // CanTransitionTo define as transições de estado válidas.
 // Isto é o início do padrão State — expandido no Módulo 15.
+var leadTransitions = map[Status]map[Status]bool{
+	StatusNew:       {StatusContacted: true, StatusLost: true},
+	StatusContacted: {StatusQualified: true, StatusLost: true},
+	StatusQualified: {StatusLost: true},
+	StatusLost:      {},
+}
+
 func (s Status) CanTransitionTo(next Status) bool {
-	transitions := map[Status][]Status{
-		StatusNew:       {StatusContacted, StatusLost},
-		StatusContacted: {StatusQualified, StatusLost},
-		StatusQualified: {StatusLost},
-		StatusLost:      {},
-	}
-	for _, allowed := range transitions[s] {
-		if allowed == next {
-			return true
-		}
-	}
-	return false
+	return leadTransitions[s][next]
 }
 
 // Lead representa um potencial negócio no CRM.

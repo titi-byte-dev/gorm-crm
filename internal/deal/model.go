@@ -29,6 +29,23 @@ func (s Stage) IsClosed() bool {
 	return s == StageWon || s == StageLost
 }
 
+// String implementa fmt.Stringer.
+func (s Stage) String() string { return string(s) }
+
+// Label devolve a etiqueta em portugues para UI e logs legíveis.
+func (s Stage) Label() string {
+	labels := map[Stage]string{
+		StageProposal:    "Proposta",
+		StageNegotiation: "Negociacao",
+		StageWon:         "Ganho",
+		StageLost:        "Perdido",
+	}
+	if l, ok := labels[s]; ok {
+		return l
+	}
+	return string(s)
+}
+
 func (s Stage) CanTransitionTo(next Stage) bool {
 	transitions := map[Stage][]Stage{
 		StageProposal:    {StageNegotiation, StageLost},

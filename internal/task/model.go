@@ -27,8 +27,42 @@ const (
 	StatusCancelled  Status = "cancelled"
 )
 
+// String implementa fmt.Stringer para Status.
+func (s Status) String() string { return string(s) }
+
+// Label devolve a etiqueta em portugues.
+func (s Status) Label() string {
+	labels := map[Status]string{
+		StatusTodo:       "Por fazer",
+		StatusInProgress: "Em progresso",
+		StatusDone:       "Concluido",
+		StatusCancelled:  "Cancelado",
+	}
+	if l, ok := labels[s]; ok {
+		return l
+	}
+	return string(s)
+}
+
 func (s Status) IsFinal() bool {
 	return s == StatusDone || s == StatusCancelled
+}
+
+// String implementa fmt.Stringer para Priority.
+func (p Priority) String() string { return string(p) }
+
+// Label devolve a etiqueta em portugues.
+func (p Priority) Label() string {
+	labels := map[Priority]string{
+		PriorityLow:    "Baixa",
+		PriorityMedium: "Media",
+		PriorityHigh:   "Alta",
+		PriorityUrgent: "Urgente",
+	}
+	if l, ok := labels[p]; ok {
+		return l
+	}
+	return string(p)
 }
 
 // Task representa uma tarefa associada a um contacto ou negócio.

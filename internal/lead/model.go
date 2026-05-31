@@ -27,6 +27,24 @@ func (s Status) IsValid() bool {
 
 // CanTransitionTo define as transições de estado válidas.
 // Isto é o início do padrão State — expandido no Módulo 15.
+// String implementa fmt.Stringer — o tipo funciona com %s, log, fmt.Println.
+// Em Go, interfaces sao satisfeitas implicitamente: nao ha "implements".
+func (s Status) String() string { return string(s) }
+
+// Label devolve a etiqueta em portugues para UI e mensagens de erro.
+func (s Status) Label() string {
+	labels := map[Status]string{
+		StatusNew:       "Novo",
+		StatusContacted: "Contactado",
+		StatusQualified: "Qualificado",
+		StatusLost:      "Perdido",
+	}
+	if l, ok := labels[s]; ok {
+		return l
+	}
+	return string(s)
+}
+
 func (s Status) CanTransitionTo(next Status) bool {
 	transitions := map[Status][]Status{
 		StatusNew:       {StatusContacted, StatusLost},

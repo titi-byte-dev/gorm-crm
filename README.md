@@ -1,24 +1,24 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M04 — Git Workflow](https://github.com/titi-byte-dev/gorm-crm/tree/branch-04-git-workflow)** &nbsp;|&nbsp;
-`branch-05-rest-api` &nbsp;|&nbsp;
-**[M06 — Autenticação ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-06-auth)**
+**[⬅️ M05 — REST API](https://github.com/titi-byte-dev/gorm-crm/tree/branch-05-rest-api)** &nbsp;|&nbsp;
+`branch-06-auth` &nbsp;|&nbsp;
+**[M07 — Arquitetura MVC ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-07-mvc-layers)**
 
-`█████░░░░░░░░░░░░░░░` Módulo **05 / 18** — Nível 🟢 Júnior
+`██████░░░░░░░░░░░░░░` Módulo **06 / 18** — Nível 🟢 Júnior
 
 </div>
 
 ---
 
-# 🌐 Módulo 05 — REST API Completa
+# 🔐 Módulo 06 — Autenticação & Autorização
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![Endpoints](https://img.shields.io/badge/endpoints-15+-blueviolet)](.)
-[![Módulo](https://img.shields.io/badge/Módulo-05%20%2F%2018-brightgreen)](.)
+[![JWT](https://img.shields.io/badge/JWT-HS256-000000?style=flat&logo=jsonwebtokens)](.)
+[![Módulo](https://img.shields.io/badge/Módulo-06%20%2F%2018-brightgreen)](.)
 
-> **O que foi construído:** API REST completa para Contacts, Leads e Deals. Validação com `go-playground/validator`, resposta paginada padronizada, CORS e o pipeline de vendas com transições de estado controladas.
+> **O que foi construído:** A API deixou de ser pública. JWT com access + refresh tokens, bcrypt para passwords, RBAC com roles (admin/manager/seller) e todas as rotas protegidas por middleware.
 
 ---
 
@@ -26,153 +26,137 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Estruturar uma REST API com múltiplos domínios
-- [ ] Validar input com `go-playground/validator` e devolver erros descritivos
-- [ ] Usar generics Go para um envelope de paginação reutilizável
-- [ ] Controlar transições de estado numa API (pipeline de vendas)
-- [ ] Configurar CORS para permitir consumo da API por frontends
+- [ ] Explicar a diferença entre autenticação e autorização
+- [ ] Implementar bcrypt e perceber porquê é lento por design
+- [ ] Criar e validar JWTs com claims personalizados
+- [ ] Usar middleware para proteger grupos de rotas
+- [ ] Implementar RBAC com hierarquia de roles
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-05-rest-api
+git checkout branch-06-auth
+cp .env.example .env
+# Edita .env e adiciona: JWT_SECRET=uma-chave-secreta-longa
+
 docker-compose up -d postgres
 make run
 ```
 
 ```bash
-# Criar um contacto
-curl -X POST http://localhost:8080/api/v1/contacts \
+# 1. Criar conta
+curl -X POST http://localhost:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"name":"Ana Silva","email":"ana@empresa.com","company":"TechCorp"}'
+  -d '{"name":"Ana Silva","email":"ana@empresa.com","password":"segredo123","role":"seller"}'
 
-# Criar um lead para o contacto
-curl -X POST http://localhost:8080/api/v1/leads \
+# 2. Login — guarda o access_token
+curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"title":"Proposta SaaS","value":5000,"contact_id":"<id do contacto acima>"}'
+  -d '{"email":"ana@empresa.com","password":"segredo123"}'
 
-# Mover o lead para qualified
-curl -X PATCH http://localhost:8080/api/v1/leads/<id>/status \
-  -H "Content-Type: application/json" \
-  -d '{"status":"qualified"}'
+# 3. Aceder à API com o token
+curl http://localhost:8080/api/v1/contacts \
+  -H "Authorization: Bearer <access_token>"
+
+# Sem token → 401 Unauthorized
+curl http://localhost:8080/api/v1/contacts
 ```
 
 ---
 
-## 🗺️ Endpoints da API
+## 🗺️ Como este módulo foi construído — commit a commit
+
+> [!TIP]
+> Corre `git log --oneline branch-05-rest-api..branch-06-auth` para ver todos os commits deste módulo com as suas explicações.
 
 ```mermaid
 flowchart LR
-    subgraph CONTACTS["📋 /api/v1/contacts"]
-        C1["POST /          → Criar contacto"]
-        C2["GET /           → Listar (paginado)"]
-        C3["GET /:id        → Detalhe"]
-        C4["PUT /:id        → Atualizar"]
-        C5["DELETE /:id     → Apagar"]
-    end
+    C1["chore: add JWT\n+ bcrypt deps\nPorquê estes packages?"]
+    C2["feat: bcrypt\npassword hashing\nSalt · custo · timing"]
+    C3["feat: JWT\ngeneration + validation\nHeader·Payload·Signature"]
+    C4["feat: JWT\nmiddleware + RBAC\nProtected · RequireRole"]
+    C5["feat: auth\nservice\nUser enumeration · refresh"]
+    C6["feat: handler\n+ user repository\njson:\"-\" · /me endpoint"]
+    C7["refactor: replace\nhardcoded ownerID\nctxutil · DRY"]
+    C8["feat: wire auth\nprotect all routes\nroute groups"]
+    C9["feat: tasks\nmigration\nPartial index"]
 
-    subgraph LEADS["🎯 /api/v1/leads"]
-        L1["POST /          → Criar lead"]
-        L2["GET /           → Listar (filtro status)"]
-        L3["GET /:id        → Detalhe"]
-        L4["PATCH /:id/status → Transição de estado"]
-        L5["DELETE /:id     → Apagar"]
-    end
-
-    subgraph DEALS["💼 /api/v1/deals"]
-        D1["POST /          → Criar deal"]
-        D2["GET /           → Listar (filtro stage)"]
-        D3["GET /:id        → Detalhe"]
-        D4["PATCH /:id/stage → Mover no pipeline"]
-        D5["DELETE /:id     → Apagar"]
-    end
+    C1-->C2-->C3-->C4-->C5-->C6-->C7-->C8-->C9
 ```
 
 ---
 
 ## 🔍 Conceitos-Chave
 
-### Validação com mensagens descritivas
+### JWT — Anatomia do token
 
-> [!IMPORTANT]
-> Em vez de devolver `400 Bad Request` sem contexto, a API devolve os erros campo a campo — o frontend sabe exactamente o que corrigir.
-
-```bash
-curl -X POST /api/v1/contacts -d '{"name":"A","email":"nao-e-email"}'
-
-# Resposta 422:
-{
-  "errors": [
-    { "field": "name",  "message": "mínimo 2 caracteres" },
-    { "field": "email", "message": "email inválido" }
-  ]
-}
 ```
+eyJhbGciOiJIUzI1NiJ9 . eyJ1aWQiOiIxMjMiLCJyb2xlIjoic2VsbGVyIn0 . SflKxwRJS...
+      HEADER                         PAYLOAD                          SIGNATURE
+   (algoritmo)              (userID, role, exp, iat)              (HMAC do resto)
+```
+
+> [!WARNING]
+> O Payload é apenas **Base64**, não encriptado. Qualquer um com o token consegue ler o conteúdo. **Nunca colocar passwords, dados de pagamento ou informação sensível no JWT.**
 
 ---
 
-### Generics para paginação reutilizável
+### bcrypt — Lento por design
 
 <details>
-<summary><strong>Ver: Page[T] — um tipo genérico para qualquer lista</strong></summary>
+<summary><strong>Ver: porquê 250ms é uma feature, não um bug</strong></summary>
 
 ```go
-// Definido uma vez em internal/shared/response/response.go
-type Page[T any] struct {
-    Data  []T   `json:"data"`
-    Total int64 `json:"total"`
-    Page  int   `json:"page"`
-    Limit int   `json:"limit"`
-    Pages int64 `json:"pages"`  // total de páginas calculado
-}
+const bcryptCost = 12  // ~250ms numa máquina moderna
 
-// Usado em qualquer handler sem duplicação
-response.NewPage(contacts, total, filters.Page, filters.Limit)
-response.NewPage(leads, total, filters.Page, filters.Limit)
-response.NewPage(deals, total, filters.Page, filters.Limit)
+// Dois hashes da mesma password são SEMPRE diferentes
+hash1, _ := HashPassword("segredo123")  // $2a$12$abc...xyz
+hash2, _ := HashPassword("segredo123")  // $2a$12$def...uvw  ← diferente!
+
+// A comparação é sempre em constant-time
+CheckPassword("segredo123", hash1)  // true
 ```
 
-```json
-{
-  "data":  [...],
-  "total": 47,
-  "page":  2,
-  "limit": 10,
-  "pages": 5
-}
-```
+**Porquê 250ms é bom:**
+- Para um utilizador: imperceptível (login demora 300ms no total)
+- Para um atacante com GPU: 10.000 tentativas/segundo × 250ms = inviável
+
+**Porquê não SHA256:**
+- SHA256 faz ~1 bilião de hashes/segundo numa GPU moderna
+- 10 caracteres alfanuméricos: ~7 minutos para quebrar
+- Com bcrypt cost 12: ~200 anos
 
 </details>
 
 ---
 
-### Pipeline de Vendas com transições controladas
+### RBAC — Route Groups com middleware
 
 <details>
-<summary><strong>Ver: PATCH /deals/:id/stage — transições válidas</strong></summary>
+<summary><strong>Ver: como as rotas ficam organizadas</strong></summary>
 
-```mermaid
-stateDiagram-v2
-    [*] --> proposal : Deal criado
-    proposal --> negotiation : PATCH stage=negotiation ✅
-    proposal --> lost : PATCH stage=lost ✅
-    negotiation --> won : PATCH stage=won ✅
-    negotiation --> lost : PATCH stage=lost ✅
-    won --> [*]
-    lost --> [*]
-    proposal --> won : ❌ 422 Unprocessable Entity
+```go
+v1 := app.Group("/api/v1")
+
+// Públicas — sem middleware
+auth.RegisterRoutes(v1, authSvc)
+
+// Protegidas — Protected() corre antes de qualquer handler
+protected := v1.Use(auth.Protected())
+contact.RegisterRoutes(protected, contactSvc)
+
+// Só admins — RequireRole corre depois de Protected()
+adminOnly := protected.Use(auth.RequireRole(user.RoleAdmin))
+// user.RegisterRoutes(adminOnly, userSvc)  ← Módulo 07
 ```
 
-```bash
-# Tentar saltar proposta → ganho (inválido)
-curl -X PATCH /api/v1/deals/<id>/stage -d '{"stage":"won"}'
-# → 422 { "error": "validation error", "message": "cannot move from proposal to won" }
-
-# Transição válida
-curl -X PATCH /api/v1/deals/<id>/stage -d '{"stage":"negotiation"}'
-# → 200 { deal atualizado }
+**Hierarquia:**
+```
+admin (3) → pode tudo
+manager (2) → pode o que manager e seller podem
+seller (1) → acesso básico
 ```
 
 </details>
@@ -186,24 +170,23 @@ curl -X PATCH /api/v1/deals/<id>/stage -d '{"stage":"negotiation"}'
 
 ```
 Criados:
-├── internal/shared/response/response.go  ← Page[T] genérico + helpers Created/OK/NoContent
-├── internal/shared/validate/validate.go  ← validação com erros por campo
-├── internal/shared/middleware/cors.go    ← CORS configurável por env
-├── internal/lead/
-│   ├── service.go      ← CreateLeadDTO, UpdateStatus com state machine
-│   ├── handler.go      ← 5 endpoints + validação
+├── internal/auth/
+│   ├── password.go    ← bcrypt hash + check
+│   ├── jwt.go         ← GenerateTokenPair + ValidateToken
+│   ├── middleware.go  ← Protected() + RequireRole() + RBAC hierarchy
+│   ├── service.go     ← Register, Login (user enumeration safe), Refresh
+│   └── handler.go     ← /register /login /refresh /me
+├── internal/user/
 │   └── repository_pg.go
-├── internal/deal/
-│   ├── service.go      ← CreateDealDTO, MoveStage com transições
-│   ├── handler.go      ← 5 endpoints + validação
-│   └── repository_pg.go
-└── migrations/
-    ├── 003_create_leads.up/down.sql
-    └── 004_create_deals.up/down.sql
+├── internal/shared/
+│   └── ctxutil/ctxutil.go  ← OwnerID(c) helper partilhado
+└── migrations/005_create_tasks.up/down.sql
 
 Modificados:
-├── cmd/api/main.go    ← regista leads + deals + CORS middleware
-└── internal/contact/handler.go ← usa response.Page e validate.Check
+├── internal/contact/handler.go  ← ownerID via ctxutil
+├── internal/lead/handler.go     ← ownerID via ctxutil
+├── internal/deal/handler.go     ← ownerID via ctxutil
+└── cmd/api/main.go              ← auth wired + protected route group
 ```
 
 </details>
@@ -214,26 +197,26 @@ Modificados:
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Adiciona `GET /api/v1/contacts/:id/leads` para listar os leads de um contacto
-- **Nível 2** — Implementa `GET /api/v1/pipeline` que devolve contagem de deals por stage
-- **Nível 3** — Adiciona rate limiting: máximo 100 requests por minuto por IP
+- **Nível 1** — Testa user enumeration: tenta login com email que não existe vs password errada — as respostas são iguais?
+- **Nível 2** — Implementa `PATCH /auth/password` para alterar password (requer token válido)
+- **Nível 3** — Adiciona um endpoint só para admins e testa com um token de seller
 
 ---
 
 ## ✅ Checklist antes de avançar
 
-- [ ] Todos os endpoints testados com curl ou Postman
-- [ ] Tentaste criar um recurso com dados inválidos — viste a resposta 422 com erros por campo?
-- [ ] Tentaste uma transição de estado inválida no pipeline — viste o 422?
-- [ ] Entendes como `Page[T]` usa generics para evitar duplicação
+- [ ] Fluxo completo testado: register → login → usar API → refresh
+- [ ] Tentaste aceder a `/contacts` sem token — viste 401?
+- [ ] Consegues explicar a diferença entre o access e o refresh token
+- [ ] Entendes porquê o bcrypt é lento propositadamente
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M04 — Git Workflow](https://github.com/titi-byte-dev/gorm-crm/tree/branch-04-git-workflow)** &nbsp;|&nbsp;
-`05 / 18` &nbsp;|&nbsp;
-**[M06 — Autenticação ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-06-auth)**
+**[⬅️ M05 — REST API](https://github.com/titi-byte-dev/gorm-crm/tree/branch-05-rest-api)** &nbsp;|&nbsp;
+`06 / 18` &nbsp;|&nbsp;
+**[M07 — Arquitetura MVC ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-07-mvc-layers)**
 
 </div>

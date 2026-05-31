@@ -9,17 +9,18 @@ import (
 	"gorm.io/gorm"
 )
 
-// contactRecord é o modelo GORM — separado do domain model para não
-// vazar detalhes de persistência para o resto da aplicação.
+// contactRecord: índice composto (owner_id, created_at) porque FindAll usa
+// WHERE owner_id = ? ORDER BY created_at — o b-tree cobre predicado e ordenação.
+// Company indexado para o filtro ILIKE — parcial, mas evita full table scan no prefix.
 type contactRecord struct {
 	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
 	Name      string    `gorm:"not null"`
 	Email     string    `gorm:"uniqueIndex;not null"`
 	Phone     string
-	Company   string
+	Company   string    `gorm:"index"`
 	Notes     string
-	OwnerID   uuid.UUID `gorm:"type:uuid;not null;index"`
-	CreatedAt int64     `gorm:"autoCreateTime:milli"`
+	OwnerID   uuid.UUID `gorm:"type:uuid;not null;index:idx_contacts_owner_created,priority:1"`
+	CreatedAt int64     `gorm:"autoCreateTime:milli;index:idx_contacts_owner_created,priority:2"`
 	UpdatedAt int64     `gorm:"autoUpdateTime:milli"`
 }
 

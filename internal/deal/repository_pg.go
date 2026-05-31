@@ -10,15 +10,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// dealRecord: índice composto (owner_id, stage) porque FindAll filtra sempre
+// por owner e frequentemente por stage — o composto cobre ambos num único b-tree.
+// ClosedAt indexado para queries de pipeline ("deals fechados este mês").
 type dealRecord struct {
 	ID        uuid.UUID  `gorm:"type:uuid;primaryKey"`
 	Title     string     `gorm:"not null"`
 	Value     float64
-	Stage     string     `gorm:"not null;default:'proposal'"`
+	Stage     string     `gorm:"not null;default:'proposal';index:idx_deals_owner_stage,priority:2"`
 	LeadID    *uuid.UUID `gorm:"type:uuid;index"`
 	ContactID uuid.UUID  `gorm:"type:uuid;not null;index"`
-	OwnerID   uuid.UUID  `gorm:"type:uuid;not null;index"`
-	ClosedAt  *time.Time
+	OwnerID   uuid.UUID  `gorm:"type:uuid;not null;index:idx_deals_owner_stage,priority:1"`
+	ClosedAt  *time.Time `gorm:"index"`
 	CreatedAt time.Time  `gorm:"autoCreateTime"`
 	UpdatedAt time.Time  `gorm:"autoUpdateTime"`
 }

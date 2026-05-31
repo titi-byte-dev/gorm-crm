@@ -25,7 +25,7 @@ func NewService(repo Repository, logger *slog.Logger) *Service {
 //   Os emitters não sabem que existe um ActivityLog.
 //   O ActivityLog não sabe como os eventos são gerados.
 //   Desacoplamento total.
-func (s *Service) RegisterHandlers(bus *events.Bus) {
+func (s *Service) RegisterHandlers(bus events.Subscriber) {
 	eventTypes := []events.EventType{
 		events.ContactCreated,
 		events.ContactUpdated,

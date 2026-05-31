@@ -31,6 +31,19 @@ type Event struct {
 // Em Go, funções são valores de primeira classe — podem ser passadas como argumentos.
 type Handler func(ctx context.Context, event Event)
 
+// Publisher e a interface minima para publicar eventos.
+// Os servicos de dominio dependem desta interface, nao do *Bus concreto.
+// Principio DIP: depender de abstraccoes, nao de implementacoes.
+type Publisher interface {
+	Publish(event Event)
+}
+
+// Subscriber e a interface minima para subscrever eventos.
+// Separada de Publisher — ISP: quem subscreve nao precisa de publicar.
+type Subscriber interface {
+	Subscribe(eventType EventType, handler Handler)
+}
+
 // Bus é o event bus em memória baseado em channels Go.
 //
 // Como funciona:

@@ -12,10 +12,10 @@ import (
 // Não importa fiber, não faz queries SQL — só regras do domínio.
 type Service struct {
 	repo Repository
-	bus  *events.Bus
+	bus  events.Publisher
 }
 
-func NewService(repo Repository, bus *events.Bus) *Service {
+func NewService(repo Repository, bus events.Publisher) *Service {
 	return &Service{repo: repo, bus: bus}
 }
 

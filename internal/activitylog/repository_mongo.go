@@ -11,6 +11,15 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+const (
+	collectionName     = "activity_logs"
+	logRetentionDays   = 90
+	logRetentionSecs   = logRetentionDays * 24 * 60 * 60
+	indexTimeout       = 10 * time.Second
+	queryTimeout       = 5 * time.Second
+	defaultResultLimit = 50
+)
+
 var _ Repository = (*mongoRepository)(nil)
 
 type mongoRepository struct {
@@ -21,22 +30,18 @@ type mongoRepository struct {
 // Índices no MongoDB são criados explicitamente — ao contrário do PostgreSQL,
 // não há FK automáticos que criem índices.
 func NewMongoRepository(db *mongo.Database) Repository {
-	col := db.Collection("activity_logs")
+	col := db.Collection(collectionName)
 
-	// Cria índices em background para não bloquear o startup
-	// entity_type + entity_id — query mais comum: "histórico deste contacto"
-	// user_id — query frequente: "o que fez este utilizador?"
-	// created_at — ordenação cronológica e TTL (expirar logs antigos)
 	indexes := []mongo.IndexModel{
 		{Keys: bson.D{{Key: "entity_type", Value: 1}, {Key: "entity_id", Value: 1}}},
 		{Keys: bson.D{{Key: "user_id", Value: 1}}},
 		{
 			Keys:    bson.D{{Key: "created_at", Value: 1}},
-			Options: options.Index().SetExpireAfterSeconds(90 * 24 * 3600), // TTL: 90 dias
+			Options: options.Index().SetExpireAfterSeconds(logRetentionSecs),
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), indexTimeout)
 	defer cancel()
 	col.Indexes().CreateMany(ctx, indexes) //nolint:errcheck — índices criados se não existirem
 
@@ -51,7 +56,7 @@ func (r *mongoRepository) Save(log *Log) error {
 		log.CreatedAt = time.Now()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
 
 	_, err := r.col.InsertOne(ctx, log)
@@ -63,7 +68,7 @@ func (r *mongoRepository) Save(log *Log) error {
 
 func (r *mongoRepository) FindByEntity(entityType, entityID string, limit int) ([]*Log, error) {
 	if limit <= 0 {
-		limit = 50
+		limit = defaultResultLimit
 	}
 	filter := bson.M{"entity_type": entityType, "entity_id": entityID}
 	// Sort por _id descrescente = mais recente primeiro (ObjectID tem timestamp embutido)
@@ -73,7 +78,7 @@ func (r *mongoRepository) FindByEntity(entityType, entityID string, limit int) (
 
 func (r *mongoRepository) FindByUser(userID string, limit int) ([]*Log, error) {
 	if limit <= 0 {
-		limit = 50
+		limit = defaultResultLimit
 	}
 	filter := bson.M{"user_id": userID}
 	opts := options.Find().SetSort(bson.D{{Key: "_id", Value: -1}}).SetLimit(int64(limit))
@@ -81,7 +86,7 @@ func (r *mongoRepository) FindByUser(userID string, limit int) ([]*Log, error) {
 }
 
 func (r *mongoRepository) find(filter bson.M, opts *options.FindOptions) ([]*Log, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
 
 	cursor, err := r.col.Find(ctx, filter, opts)

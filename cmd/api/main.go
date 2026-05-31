@@ -41,7 +41,7 @@ func main() {
 	}
 	log.Info("database connected")
 
-	bus := events.New(500, log)
+	bus := events.New(events.DefaultBufferSize, log)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	bus.Start(ctx)

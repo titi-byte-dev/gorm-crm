@@ -1,23 +1,23 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M10 — Clean Code](https://github.com/titi-byte-dev/gorm-crm/tree/branch-10-clean-code)** &nbsp;|&nbsp;
-`branch-11-oop` &nbsp;|&nbsp;
-**[M12 — SOLID ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-12-solid)**
+**[⬅️ M11 — OOP Avançado](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)** &nbsp;|&nbsp;
+`branch-12-solid` &nbsp;|&nbsp;
+**[M13 — Object Calisthenics ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-13-calisthenics)**
 
-`███████████░░░░░░░░░` Módulo **11 / 18** — Nível 🔵 Pleno
+`████████████░░░░░░░░` Módulo **12 / 18** — Nível 🔵 Pleno
 
 </div>
 
 ---
 
-# 🏗️ Módulo 11 — OOP Avançado em Go
+# 🏛️ Módulo 12 — SOLID em Go
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![Módulo](https://img.shields.io/badge/Módulo-11%20%2F%2018-blue)](.)
+[![Módulo](https://img.shields.io/badge/Módulo-12%20%2F%2018-blue)](.)
 
-> **O que foi construído:** Go não tem herança. Este módulo mostra os 4 mecanismos que Go usa em vez disso — e porque cada um é mais seguro do que a herança clássica.
+> **O que foi construído:** Os 5 princípios SOLID aplicados ao GoRM — não como teoria, mas como refactors concretos em código que já existe.
 
 ---
 
@@ -25,181 +25,193 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Usar embedding para composição sem herança
-- [ ] Segregar interfaces em Reader + Writer (ISP)
-- [ ] Implementar `fmt.Stringer` implicitamente
-- [ ] Aplicar o padrão Functional Options
-- [ ] Explicar porque Go favorece composição sobre herança
+- [ ] Identificar violações de SRP, OCP, LSP, DIP no teu código
+- [ ] Extrair responsabilidades para tipos dedicados (SRP)
+- [ ] Adicionar comportamento sem modificar código existente (OCP)
+- [ ] Escrever verificações LSP em compile-time com `var _`
+- [ ] Injetar interfaces em vez de tipos concretos (DIP)
+- [ ] Explicar porque ISP e DIP se complementam (M11 + M12)
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-11-oop
+git checkout branch-12-solid
 
-# Vê os 4 commits — cada um é um mecanismo OOP
-git log --oneline branch-10-clean-code..branch-11-oop
+# Os 4 commits — cada um é um princípio
+git log --oneline branch-11-oop..branch-12-solid
 
-# Compara a interface antes e depois da segregação
-git diff branch-10-clean-code..branch-11-oop -- internal/contact/model.go
+# Compara o Service antes e depois do DIP
+git diff branch-11-oop..branch-12-solid -- internal/contact/service.go
 
-# Vê o Functional Options em acção
-git diff branch-10-clean-code..branch-11-oop -- internal/shared/events/events.go
+# Vê o EventMapper extraído (SRP)
+git show HEAD~2 -- internal/activitylog/mapper.go
 ```
 
 ---
 
-## 🗺️ Os 4 Mecanismos
+## 🗺️ Os 5 Princípios no GoRM
 
 ```mermaid
 flowchart TD
-    A["🏗️ OOP em Go\n(sem herança)"]
+    A["🏛️ SOLID no GoRM"]
 
-    A --> B["1️⃣ Embedding\npagination.Base embebida\nnos 4 domínios\nDRY sem acoplamento vertical"]
+    A --> S["S — Single Responsibility\nEventMapper extraído\nde activitylog.Service\nUm tipo, uma razão para mudar"]
 
-    A --> C["2️⃣ Interface Segregation\nReader + Writer\nRepository = Reader + Writer\nDependência mínima"]
+    A --> O["O — Open/Closed\ncontact.Rule interface\nNovas regras sem modificar Service\nAberto para extensão"]
 
-    A --> D["3️⃣ fmt.Stringer\nString() + Label()\nSatisfação implícita\nSem 'implements'"]
+    A --> L["L — Liskov Substitution\nNullPublisher / SpyPublisher\nvar _ Publisher = (*Null)(nil)\nSubstituível em compile-time"]
 
-    A --> E["4️⃣ Functional Options\nevents.New(opts...)\nConfiguração auto-documentada\nExtensível sem breaking change"]
+    A --> I["I — Interface Segregation\n(M11 — Reader + Writer)\nCliente recebe o mínimo\nNão depende do que não usa"]
+
+    A --> D["D — Dependency Inversion\nevents.Publisher interface\nServiços dependem de abstração\nNão de *events.Bus concreto"]
 ```
 
 ---
 
-## 🔍 Conceito 1 — Embedding vs Herança
+## 🔍 S — Single Responsibility
 
 > [!IMPORTANT]
-> Go não tem `extends`. Tem embedding — que é diferente e mais seguro.
+> "Uma classe deve ter apenas uma razão para mudar."
 
 ```go
-// ❌ Herança clássica (Java) — acoplamento vertical
-class ContactFilters extends BaseFilters {
-    String search;
-    // Problema: mudanças em BaseFilters afectam ContactFilters
-    // O filho depende dos detalhes do pai
+// ❌ Antes — service.go tinha 3 responsabilidades
+func (s *Service) handleEvent(ctx context.Context, event events.Event) {
+    log := &Log{Action: string(event.Type), UserID: event.UserID}
+    entityType, entityID := entityFromEvent(event)  // mapeamento inline
+    log.EntityType = entityType
+    // ...
 }
 
-// ✅ Embedding (Go) — composição horizontal
-type Filters struct {
-    pagination.Base   // promoção de métodos: Offset(), Normalize()
-    Search  string
-    Company string
-}
-// filters.Offset() funciona — promovido de Base
-// Mas Filters e Base são independentes: sem hierarquia
+// Se o schema do Log mudar    → tenho de abrir service.go
+// Se a lógica de query mudar  → tenho de abrir service.go
+// Se o mapeamento mudar       → tenho de abrir service.go
 ```
-
-<details>
-<summary>Ver como o compilador vê o embedding</summary>
 
 ```go
-// O que escreves:
-filters.Offset()
+// ✅ Depois — EventMapper tem uma responsabilidade
+// mapper.go
+type EventMapper struct{}
+func (m EventMapper) ToLog(event events.Event) *Log { ... }
 
-// O que o compilador expande para:
-filters.Base.Offset()
+// service.go
+func (s *Service) handleEvent(ctx context.Context, event events.Event) {
+    log := s.mapper.ToLog(event)  // delega
+    s.repo.Save(log)
+}
 
-// São equivalentes — o compilador faz a promoção automaticamente.
-// Mas podes sempre ser explícito: filters.Base.Page = 2
+// Agora cada ficheiro tem UMA razão para mudar.
 ```
-
-</details>
 
 ---
 
-## 🔍 Conceito 2 — Interface Segregation
+## 🔍 O — Open/Closed
 
 > [!NOTE]
-> O "I" do SOLID: nenhum cliente deve depender de métodos que não usa.
+> "Aberto para extensão, fechado para modificação."
 
 ```go
-// ✅ Interfaces segregadas — cada consumer recebe o mínimo
-type Reader interface {
-    FindByID(id uuid.UUID) (*Contact, error)
-    FindAll(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, error)
-    FindByEmail(email string) (*Contact, error)
+// ❌ Antes — regra de negócio inline em Create
+func (s *Service) Create(ownerID uuid.UUID, dto CreateContactDTO) (*Contact, error) {
+    existing, _ := s.repo.FindByEmail(dto.Email)
+    if existing != nil { return nil, ErrConflict }
+    // Para adicionar "telefone único" tenho de MODIFICAR este método
+}
+```
+
+```go
+// ✅ Depois — regras como valores
+type Rule interface {
+    Validate(repo Reader, dto CreateContactDTO) error
 }
 
-type Writer interface {
-    Save(contact *Contact) (*Contact, error)
-    Update(contact *Contact) (*Contact, error)
-    Delete(id uuid.UUID) error
-}
+type UniqueEmailRule struct{}
+func (r UniqueEmailRule) Validate(repo Reader, dto CreateContactDTO) error { ... }
 
-// Repository é a composição — o Service usa isto
-type Repository interface {
-    Reader
-    Writer
-}
+// Para adicionar nova regra: passa-a ao construtor
+// Service.Create não muda — está FECHADO para modificação
+contact.NewService(repo, bus,
+    contact.UniqueEmailRule{},
+    contact.BlockedDomainRule{"spam.com"},  // nova — sem tocar em Create
+)
+```
 
-// Um serviço de relatórios recebe apenas Reader — não consegue apagar dados
+---
+
+## 🔍 L — Liskov Substitution
+
+> [!TIP]
+> "Subtipos devem ser substituíveis pelos seus supertipos."
+
+```go
+// Em Go: qualquer tipo que satisfaça uma interface é um subtipo
+
+// NullPublisher é substituível onde events.Publisher é esperado
+type NullPublisher struct{}
+func (NullPublisher) Publish(_ events.Event) {}
+
+// Verificação LSP em compile-time — falha se a interface mudar
+var _ events.Publisher = (*NullPublisher)(nil)
+
+// Uso em testes — sem goroutines, sem estado partilhado
+svc := contact.NewService(repo, testutil.NullPublisher{})
+```
+
+```go
+// SpyPublisher: substituível E verificável
+type SpyPublisher struct{ Events []events.Event }
+func (s *SpyPublisher) Publish(e events.Event) { s.Events = append(s.Events, e) }
+
+spy := &testutil.SpyPublisher{}
+svc := contact.NewService(repo, spy)
+svc.Create(ownerID, dto)
+assert.True(t, spy.Published(events.ContactCreated))
+```
+
+---
+
+## 🔍 I — Interface Segregation
+
+> Já implementado em M11. Ver [branch-11-oop](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop).
+
+```go
+// Relembrar: um serviço de relatórios recebe Reader — não consegue apagar dados
 func NewReportService(repo contact.Reader) *ReportService { ... }
 ```
 
 ---
 
-## 🔍 Conceito 3 — fmt.Stringer implícito
-
-> [!TIP]
-> Em Go, interfaces são satisfeitas implicitamente — sem `implements`.
-
-```go
-// Implementar fmt.Stringer: apenas um método String() string
-func (s Status) String() string { return string(s) }
-func (s Status) Label() string  { return labels[s] } // PT label para UI
-
-// Resultado automático em todo o ecosistema Go:
-s := lead.StatusNew
-fmt.Println(s)              // "new"    ← usa String()
-log.Info("status", "v", s) // v=new    ← usa String()
-fmt.Sprintf("Status: %s", s) // "Status: new"
-```
-
-```go
-// Verificação em compile-time que o tipo satisfaz a interface:
-var _ fmt.Stringer = lead.StatusNew  // falha se String() não existir
-```
-
----
-
-## 🔍 Conceito 4 — Functional Options
+## 🔍 D — Dependency Inversion
 
 > [!IMPORTANT]
-> Parametros posicionais com tipos iguais são uma fonte clássica de bugs silenciosos.
+> "Depende de abstrações, não de concretizações."
 
 ```go
-// ❌ Antes — ordem importa, fácil de trocar
-events.New(500, log)
-events.New(log, 500)  // compila! mas está errado — o compilador não detecta
+// ❌ Antes — dependência na concretização
+type Service struct { bus *events.Bus }
+// Para substituir o bus (Kafka, RabbitMQ, teste) tenho de mudar Service
 
-// ✅ Depois — auto-documentado, ordem irrelevante
-bus := events.New(
-    events.WithBufferSize(500),
-    events.WithLogger(log),
-)
-
-// Adicionar nova opção no futuro não quebra nenhum caller:
-// events.WithMetrics(metricsClient)  ← zero breaking change
+// ✅ Depois — dependência na abstração
+type Service struct { bus events.Publisher }
+// Qualquer tipo com Publish(Event) serve — Bus, NullPublisher, KafkaPublisher
 ```
 
 <details>
-<summary>Ver a implementação interna do padrão</summary>
+<summary>Porquê Publisher e Subscriber são interfaces separadas?</summary>
 
 ```go
-type Option func(*busConfig)    // Option é uma função
+// ISP + DIP juntos:
+type Publisher interface { Publish(event Event) }
+type Subscriber interface { Subscribe(eventType EventType, handler Handler) }
 
-func WithBufferSize(n int) Option {
-    return func(c *busConfig) { c.bufferSize = n }  // closure captura n
-}
+// contact.Service só publica — recebe Publisher
+// activitylog.Service só subscreve — recebe Subscriber
+// *events.Bus satisfaz ambas — passa em qualquer lado
 
-func New(opts ...Option) *Bus {
-    cfg := &busConfig{bufferSize: DefaultBufferSize, logger: slog.Default()}
-    for _, opt := range opts {
-        opt(cfg)    // aplica cada opção à config
-    }
-    return &Bus{ch: make(chan Event, cfg.bufferSize), ...}
-}
+// Se fossem uma interface só:
+// contact.Service teria acesso a Subscribe() — que nunca usa
+// Viola ISP: dependência de métodos que não usa
 ```
 
 </details>
@@ -210,26 +222,26 @@ func New(opts ...Option) *Bus {
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Adiciona `Label()` a `activitylog.EntityType` em português
-- **Nível 2** — Cria uma interface `Labeler` e verifica que os 4 tipos a satisfazem
-- **Nível 3** — Adiciona `WithTimeout(d time.Duration)` ao `events.Bus` usando Functional Options
+- **Nível 1** — Adiciona `UniquePhoneRule` a `contact` (OCP: sem modificar `Service.Create`)
+- **Nível 2** — Cria `SpySubscriber` em `pkg/testutil` e verifica LSP
+- **Nível 3** — Aplica o padrão Rule ao `lead.Service` para validar `ContactID` existente
 
 ---
 
 ## ✅ Checklist antes de avançar
 
-- [ ] Consegues explicar a diferença entre embedding e herança?
-- [ ] Sabes quando usar `Reader` em vez de `Repository` como parâmetro?
-- [ ] Implementaste `String()` num tipo próprio e verificaste com `var _ fmt.Stringer`?
-- [ ] Consegues adicionar uma nova `Option` ao Bus sem quebrar os callers?
+- [ ] Consegues identificar as 3 responsabilidades que `activitylog.Service` tinha antes?
+- [ ] Sabes adicionar uma nova `Rule` sem abrir `contact/service.go`?
+- [ ] Entendes porque `var _ Publisher = (*Null)(nil)` verifica LSP em compile-time?
+- [ ] Consegues explicar quando usar `Publisher` vs `*events.Bus` como parâmetro?
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M10 — Clean Code](https://github.com/titi-byte-dev/gorm-crm/tree/branch-10-clean-code)** &nbsp;|&nbsp;
-`11 / 18` &nbsp;|&nbsp;
-**[M12 — SOLID ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-12-solid)**
+**[⬅️ M11 — OOP Avançado](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop)** &nbsp;|&nbsp;
+`12 / 18` &nbsp;|&nbsp;
+**[M13 — Object Calisthenics ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-13-calisthenics)**
 
 </div>

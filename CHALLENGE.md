@@ -1,81 +1,89 @@
-# 🎯 CHALLENGE — Módulo 11: OOP Avançado em Go
+# 🎯 CHALLENGE — Módulo 12: SOLID em Go
 
 ---
 
-### Nível 1 — Label() para EntityType
+### Nível 1 — UniquePhoneRule (OCP)
 
-O tipo `activitylog.EntityType` já tem constantes (`EntityContact`, `EntityLead`, etc.) mas ainda não tem `Label()` em português.
-
-Implementa:
-```go
-func (e EntityType) String() string { ... }
-func (e EntityType) Label() string  { ... }  // "Contacto", "Lead", "Negócio", etc.
-```
-
-Verifica que compila:
-```bash
-go build ./internal/activitylog/...
-```
-
----
-
-### Nível 2 — Interface Labeler
-
-Cria uma interface comum para todos os tipos que têm `Label()`:
+Sem modificar `contact/service.go`, adiciona uma regra que verifica se o telefone já existe.
 
 ```go
-// Onde colocas esta interface? internal/shared/? Porquê?
-type Labeler interface {
-    Label() string
+// contact/rules.go — adiciona este tipo
+type UniquePhoneRule struct{}
+
+func (r UniquePhoneRule) Validate(repo Reader, dto CreateContactDTO) error {
+    // como verificas se o telefone já existe?
+    // Dica: podes precisar de um novo método no Reader...
+    // Ou devolves sempre nil por enquanto e justificas porquê
 }
 ```
 
-Depois verifica em compile-time que os 4 tipos a satisfazem:
+Passa a nova regra no `main.go`:
 ```go
-var _ Labeler = lead.StatusNew
-var _ Labeler = deal.StageProposal
-var _ Labeler = task.StatusTodo
-var _ Labeler = task.PriorityHigh
+contact.NewService(repo, bus,
+    contact.UniqueEmailRule{},
+    contact.UniquePhoneRule{},
+)
 ```
 
-> **Dica:** Em Go, onde defines a interface importa — define-a onde ela é *usada*, não onde os tipos são definidos. Porquê?
+Verifica que `go build ./...` passa.
+
+> **Reflexão:** Se `Reader` não tiver `FindByPhone`, tens duas opções:
+> 1. Adicionar `FindByPhone` ao `Reader` — o que implica implementar no `PostgresRepository`
+> 2. Deixar a regra sempre passar (YAGNI) e documentar o porquê
+> Qual escolhes? Porquê?
 
 ---
 
-### Nível 3 — WithTimeout no Bus
+### Nível 2 — SpySubscriber (LSP)
 
-Adiciona uma nova opção ao `events.Bus` que define um timeout para o processamento de cada evento:
+Cria um `SpySubscriber` em `pkg/testutil`:
 
 ```go
-func WithTimeout(d time.Duration) Option { ... }
-```
+type SpySubscriber struct {
+    Subscriptions map[events.EventType]int  // conta quantas vezes cada tipo foi subscrito
+}
 
-Usa-a no `dispatch`:
-```go
-func (b *Bus) dispatch(ctx context.Context, event Event) {
-    if b.timeout > 0 {
-        var cancel context.CancelFunc
-        ctx, cancel = context.WithTimeout(ctx, b.timeout)
-        defer cancel()
-    }
-    // ... handlers
+var _ events.Subscriber = (*SpySubscriber)(nil)  // LSP compile-time
+
+func (s *SpySubscriber) Subscribe(et events.EventType, _ events.Handler) {
+    // implementa
 }
 ```
 
-Verifica que:
-1. Os callers existentes (`events.New(WithBufferSize(...), WithLogger(...))`) não precisam de mudar
-2. `go build ./...` passa sem erros
+Usa-o para verificar que `activitylog.Service.RegisterHandlers` subscreve exactamente 9 tipos de eventos:
+```go
+spy := &testutil.SpySubscriber{Subscriptions: make(map[events.EventType]int)}
+svc.RegisterHandlers(spy)
+// verifica len(spy.Subscriptions) == 9
+```
+
+---
+
+### Nível 3 — Rule no lead.Service (DIP + OCP)
+
+Aplica o mesmo padrão `Rule` ao `lead.Service`.
+
+Cria `internal/lead/rules.go` com uma `Rule` interface e um `ContactExistsRule` que verifica que o `ContactID` no `CreateLeadDTO` corresponde a um contacto existente.
+
+```go
+type Rule interface {
+    Validate(dto CreateLeadDTO) error
+}
+```
+
+> **Nota:** Esta regra precisa de acesso ao `contact.Reader`. Como passas essa dependência?
+> Funcional options? Constructor injection? Campo na struct?
 
 ---
 
 ## Perguntas de reflexão
 
-1. **Embedding vs herança**: Se `pagination.Base` tiver um campo `Page` e `contact.Filters` também tiver um campo `Page`, o que acontece? Experimenta.
+1. **SRP vs coesão:** Extrair `EventMapper` tornou o código mais fácil de entender ou mais fragmentado? Onde traças a linha entre "demasiado pequeno" e "responsabilidade única"?
 
-2. **Interface implícita**: Qual a vantagem de Go não exigir `implements`? Pensa num cenário onde queres que um tipo de uma biblioteca externa satisfaça uma interface tua.
+2. **OCP e custo:** O padrão `Rule` adiciona indireção — há mais tipos, mais ficheiros. Quando vale a pena? Quando é over-engineering?
 
-3. **Functional Options**: O padrão tem um custo — cada opção é uma alocação de closure. Em código de alta performance (milhos de chamadas/segundo), isso pode importar. Como resolvias?
+3. **LSP e interfaces largas:** Se `events.Publisher` tiver 10 métodos, é mais difícil escrever implementações de teste corretas. Como isso se relaciona com ISP?
 
 ---
 
-> Módulo seguinte: [branch-12-solid](https://github.com/titi-byte-dev/gorm-crm/tree/branch-12-solid) — SOLID: os 5 princípios aplicados ao GoRM
+> Módulo seguinte: [branch-13-calisthenics](https://github.com/titi-byte-dev/gorm-crm/tree/branch-13-calisthenics) — Object Calisthenics: 9 regras de disciplina de código

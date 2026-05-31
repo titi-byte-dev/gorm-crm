@@ -74,13 +74,21 @@ func (s *Service) UpdateStatus(id uuid.UUID, newStatus Status) (*Lead, error) {
 		return nil, fmt.Errorf("update lead: %w", err)
 	}
 
-	if newStatus == StatusLost {
-		s.bus.Publish(events.Event{Type: events.LeadLost, Payload: updated, UserID: lead.OwnerID.String()})
-	} else if newStatus == StatusQualified {
-		s.bus.Publish(events.Event{Type: events.LeadConverted, Payload: updated, UserID: lead.OwnerID.String()})
-	}
-
+	s.publishStatusEvent(updated, newStatus)
 	return updated, nil
+}
+
+var leadEventByStatus = map[Status]events.EventType{
+	StatusLost:      events.LeadLost,
+	StatusQualified: events.LeadConverted,
+}
+
+func (s *Service) publishStatusEvent(l *Lead, status Status) {
+	evtType, ok := leadEventByStatus[status]
+	if !ok {
+		return
+	}
+	s.bus.Publish(events.Event{Type: evtType, Payload: l, UserID: l.OwnerID.String()})
 }
 
 func (s *Service) Delete(id uuid.UUID) error {

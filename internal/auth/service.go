@@ -16,19 +16,19 @@ func NewService(users user.Repository) *Service {
 	return &Service{users: users}
 }
 
-type RegisterDTO struct {
+type RegisterInput struct {
 	Name     string    `json:"name"     validate:"required,min=2,max=100"`
 	Email    string    `json:"email"    validate:"required,email"`
 	Password string    `json:"password" validate:"required,min=8,max=72"`
 	Role     user.Role `json:"role"     validate:"required,oneof=admin manager seller"`
 }
 
-type LoginDTO struct {
+type LoginInput struct {
 	Email    string `json:"email"    validate:"required,email"`
 	Password string `json:"password" validate:"required"`
 }
 
-func (s *Service) Register(dto RegisterDTO) (*user.User, error) {
+func (s *Service) Register(dto RegisterInput) (*user.User, error) {
 	// Verificar se o email já existe antes de fazer hash (evita trabalho desnecessário)
 	existing, err := s.users.FindByEmail(dto.Email)
 	if err == nil && existing != nil {
@@ -56,7 +56,7 @@ func (s *Service) Register(dto RegisterDTO) (*user.User, error) {
 // Segurança importante: devolvemos sempre o mesmo erro genérico para
 // email não encontrado E password errada. Mensagens diferentes permitiriam
 // a um atacante descobrir quais emails existem no sistema (user enumeration).
-func (s *Service) Login(dto LoginDTO) (*TokenPair, error) {
+func (s *Service) Login(dto LoginInput) (*TokenPair, error) {
 	u, err := s.users.FindByEmail(dto.Email)
 	if err != nil || !CheckPassword(dto.Password, u.PasswordHash) {
 		// Mensagem genérica — não revela se o email existe ou não

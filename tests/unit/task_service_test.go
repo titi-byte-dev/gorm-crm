@@ -74,7 +74,7 @@ func TestTaskService_UpdateStatus_BlocksReopeningFinalTask(t *testing.T) {
 	svc := task.NewService(newMockRepo(), bus)
 
 	// Criar uma task
-	created, err := svc.Create(task.CreateTaskDTO{
+	created, err := svc.Create(task.CreateTaskInput{
 		Title:      "Ligar ao cliente",
 		Priority:   task.PriorityHigh,
 		AssignedTo: uuid.New(),
@@ -106,7 +106,7 @@ func TestTaskService_UpdateStatus_AllowsNormalTransitions(t *testing.T) {
 	bus := events.New(10, log)
 	svc := task.NewService(newMockRepo(), bus)
 
-	created, _ := svc.Create(task.CreateTaskDTO{
+	created, _ := svc.Create(task.CreateTaskInput{
 		Title:      "Enviar proposta",
 		Priority:   task.PriorityMedium,
 		AssignedTo: uuid.New(),

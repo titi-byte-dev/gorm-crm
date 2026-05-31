@@ -10,14 +10,14 @@ import sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 //   1. Criar um novo tipo que implemente Rule
 //   2. Passar ao NewService — sem tocar no Service.Create
 type Rule interface {
-	Validate(repo Reader, dto CreateContactDTO) error
+	Validate(repo Reader, dto CreateContactInput) error
 }
 
 // UniqueEmailRule verifica que nao existe outro contacto com o mesmo email.
 // E a regra de negocio que antes estava inline em Service.Create.
 type UniqueEmailRule struct{}
 
-func (r UniqueEmailRule) Validate(repo Reader, dto CreateContactDTO) error {
+func (r UniqueEmailRule) Validate(repo Reader, dto CreateContactInput) error {
 	existing, err := repo.FindByEmail(dto.Email)
 	if err == nil && existing != nil {
 		return sharederrors.ErrConflict

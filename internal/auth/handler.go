@@ -18,7 +18,7 @@ func RegisterRoutes(router fiber.Router, svc *Service) {
 }
 
 func (h *Handler) Register(c *fiber.Ctx) error {
-	var dto RegisterDTO
+	var dto RegisterInput
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}
@@ -34,7 +34,7 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Login(c *fiber.Ctx) error {
-	var dto LoginDTO
+	var dto LoginInput
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}

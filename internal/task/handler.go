@@ -25,7 +25,7 @@ func RegisterRoutes(router fiber.Router, svc *Service) {
 }
 
 func (h *Handler) Create(c *fiber.Ctx) error {
-	var dto CreateTaskDTO
+	var dto CreateTaskInput
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}
@@ -82,7 +82,7 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid task id")
 	}
-	var dto UpdateTaskDTO
+	var dto UpdateTaskInput
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}

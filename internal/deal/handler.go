@@ -26,7 +26,7 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	var dto CreateDealDTO
+	var dto CreateDealInput
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}

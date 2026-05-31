@@ -28,7 +28,7 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	var dto CreateContactDTO
+	var dto CreateContactInput
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}
@@ -81,7 +81,7 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid contact id")
 	}
-	var dto UpdateContactDTO
+	var dto UpdateContactInput
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}

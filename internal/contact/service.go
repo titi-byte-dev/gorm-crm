@@ -23,7 +23,7 @@ func NewService(repo Repository, bus events.Publisher, rules ...Rule) *Service {
 	return &Service{repo: repo, bus: bus, rules: rules}
 }
 
-type CreateContactDTO struct {
+type CreateContactInput struct {
 	Name    string `json:"name"    validate:"required,min=2,max=100"`
 	Email   string `json:"email"   validate:"required,email"`
 	Phone   string `json:"phone"   validate:"omitempty,max=20"`
@@ -31,14 +31,14 @@ type CreateContactDTO struct {
 	Notes   string `json:"notes"   validate:"omitempty,max=1000"`
 }
 
-type UpdateContactDTO struct {
+type UpdateContactInput struct {
 	Name    *string `json:"name"    validate:"omitempty,min=2,max=100"`
 	Phone   *string `json:"phone"   validate:"omitempty,max=20"`
 	Company *string `json:"company" validate:"omitempty,max=100"`
 	Notes   *string `json:"notes"   validate:"omitempty,max=1000"`
 }
 
-func (s *Service) Create(ownerID uuid.UUID, dto CreateContactDTO) (*Contact, error) {
+func (s *Service) Create(ownerID uuid.UUID, dto CreateContactInput) (*Contact, error) {
 	for _, rule := range s.rules {
 		if err := rule.Validate(s.repo, dto); err != nil {
 			return nil, fmt.Errorf("contact rule: %w", err)
@@ -84,7 +84,7 @@ func (s *Service) List(ownerID uuid.UUID, filters Filters) (Contacts, int64, err
 	return contacts, total, nil
 }
 
-func (s *Service) Update(id uuid.UUID, dto UpdateContactDTO) (*Contact, error) {
+func (s *Service) Update(id uuid.UUID, dto UpdateContactInput) (*Contact, error) {
 	contact, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("update contact: %w", err)
@@ -106,9 +106,9 @@ func (s *Service) Update(id uuid.UUID, dto UpdateContactDTO) (*Contact, error) {
 	return updated, nil
 }
 
-// applyUpdates aplica os campos opcionais do DTO ao contacto.
+// applyUpdates aplica os campos opcionais do Input ao contacto.
 // Ponteiro nil significa "não alterar" — só actualiza campos enviados.
-func applyUpdates(c *Contact, dto UpdateContactDTO) {
+func applyUpdates(c *Contact, dto UpdateContactInput) {
 	if dto.Name != nil {
 		c.Name = *dto.Name
 	}

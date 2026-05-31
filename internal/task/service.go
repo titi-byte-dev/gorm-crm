@@ -19,7 +19,7 @@ func NewService(repo Repository, bus events.Publisher) *Service {
 	return &Service{repo: repo, bus: bus}
 }
 
-type CreateTaskDTO struct {
+type CreateTaskInput struct {
 	Title       string     `json:"title"       validate:"required,min=2,max=200"`
 	Description string     `json:"description" validate:"omitempty,max=2000"`
 	Priority    Priority   `json:"priority"    validate:"required,oneof=low medium high urgent"`
@@ -29,14 +29,14 @@ type CreateTaskDTO struct {
 	DueDate     *string    `json:"due_date"    validate:"omitempty"`
 }
 
-type UpdateTaskDTO struct {
+type UpdateTaskInput struct {
 	Title       *string   `json:"title"       validate:"omitempty,min=2,max=200"`
 	Description *string   `json:"description" validate:"omitempty,max=2000"`
 	Priority    *Priority `json:"priority"    validate:"omitempty,oneof=low medium high urgent"`
 	Status      *Status   `json:"status"      validate:"omitempty,oneof=todo in_progress done cancelled"`
 }
 
-func (s *Service) Create(dto CreateTaskDTO) (*Task, error) {
+func (s *Service) Create(dto CreateTaskInput) (*Task, error) {
 	task := &Task{
 		Title:       dto.Title,
 		Description: dto.Description,
@@ -86,7 +86,7 @@ func (s *Service) UpdateStatus(id uuid.UUID, newStatus Status) (*Task, error) {
 	return updated, nil
 }
 
-func (s *Service) Update(id uuid.UUID, dto UpdateTaskDTO) (*Task, error) {
+func (s *Service) Update(id uuid.UUID, dto UpdateTaskInput) (*Task, error) {
 	task, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("update task: %w", err)
@@ -99,9 +99,9 @@ func (s *Service) Update(id uuid.UUID, dto UpdateTaskDTO) (*Task, error) {
 	return s.repo.Update(task)
 }
 
-// applyUpdates aplica os campos opcionais do DTO à task.
+// applyUpdates aplica os campos opcionais do Input à task.
 // Ponteiro nil significa "não alterar" — só actualiza campos enviados.
-func applyUpdates(t *Task, dto UpdateTaskDTO) {
+func applyUpdates(t *Task, dto UpdateTaskInput) {
 	if dto.Title != nil {
 		t.Title = *dto.Title
 	}

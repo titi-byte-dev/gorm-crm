@@ -19,14 +19,14 @@ func NewService(repo Repository, bus events.Publisher) *Service {
 	return &Service{repo: repo, bus: bus}
 }
 
-type CreateDealDTO struct {
+type CreateDealInput struct {
 	Title     string     `json:"title"      validate:"required,min=2,max=200"`
 	Value     float64    `json:"value"      validate:"min=0"`
 	ContactID uuid.UUID  `json:"contact_id" validate:"required"`
 	LeadID    *uuid.UUID `json:"lead_id"`
 }
 
-func (s *Service) Create(ownerID uuid.UUID, dto CreateDealDTO) (*Deal, error) {
+func (s *Service) Create(ownerID uuid.UUID, dto CreateDealInput) (*Deal, error) {
 	value, err := valueobject.ParseMoney(dto.Value)
 	if err != nil {
 		return nil, fmt.Errorf("create deal: %w", err)

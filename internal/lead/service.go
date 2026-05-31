@@ -18,19 +18,19 @@ func NewService(repo Repository, bus events.Publisher) *Service {
 	return &Service{repo: repo, bus: bus}
 }
 
-type CreateLeadDTO struct {
+type CreateLeadInput struct {
 	Title     string    `json:"title"      validate:"required,min=2,max=200"`
 	Value     float64   `json:"value"      validate:"min=0"`
 	ContactID uuid.UUID `json:"contact_id" validate:"required"`
 }
 
-type UpdateLeadDTO struct {
+type UpdateLeadInput struct {
 	Title  *string  `json:"title"  validate:"omitempty,min=2,max=200"`
 	Value  *float64 `json:"value"  validate:"omitempty,min=0"`
 	Status *Status  `json:"status" validate:"omitempty,oneof=new contacted qualified lost"`
 }
 
-func (s *Service) Create(ownerID uuid.UUID, dto CreateLeadDTO) (*Lead, error) {
+func (s *Service) Create(ownerID uuid.UUID, dto CreateLeadInput) (*Lead, error) {
 	value, err := valueobject.ParseMoney(dto.Value)
 	if err != nil {
 		return nil, fmt.Errorf("create lead: %w", err)

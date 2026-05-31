@@ -1,89 +1,73 @@
-# 🎯 CHALLENGE — Módulo 12: SOLID em Go
+# 🎯 CHALLENGE — Módulo 13: Object Calisthenics
 
 ---
 
-### Nível 1 — UniquePhoneRule (OCP)
+### Nível 1 — Leads first-class collection (Regra 4)
 
-Sem modificar `contact/service.go`, adiciona uma regra que verifica se o telefone já existe.
+Aplica o mesmo padrão `Contacts` ao domínio `lead`.
 
 ```go
-// contact/rules.go — adiciona este tipo
-type UniquePhoneRule struct{}
+// internal/lead/model.go
+type Leads []*Lead
 
-func (r UniquePhoneRule) Validate(repo Reader, dto CreateContactDTO) error {
-    // como verificas se o telefone já existe?
-    // Dica: podes precisar de um novo método no Reader...
-    // Ou devolves sempre nil por enquanto e justificas porquê
-}
+func (ls Leads) FilterByStatus(s Status) Leads { ... }
+func (ls Leads) TotalValue() valueobject.Money  { ... }
+func (ls Leads) IDs() []uuid.UUID               { ... }
 ```
 
-Passa a nova regra no `main.go`:
-```go
-contact.NewService(repo, bus,
-    contact.UniqueEmailRule{},
-    contact.UniquePhoneRule{},
-)
-```
+Actualiza `Reader.FindAll` e `Service.List` para devolver `Leads`.
 
-Verifica que `go build ./...` passa.
-
-> **Reflexão:** Se `Reader` não tiver `FindByPhone`, tens duas opções:
-> 1. Adicionar `FindByPhone` ao `Reader` — o que implica implementar no `PostgresRepository`
-> 2. Deixar a regra sempre passar (YAGNI) e documentar o porquê
-> Qual escolhes? Porquê?
+> **Pergunta:** `TotalValue()` itera sobre todos os leads para somar. Se tiveres 10.000 leads em memória, qual é o impacto? Quando é que isto é um problema?
 
 ---
 
-### Nível 2 — SpySubscriber (LSP)
+### Nível 2 — Email value object (Regra 3)
 
-Cria um `SpySubscriber` em `pkg/testutil`:
+Cria `pkg/valueobject/email.go`:
 
 ```go
-type SpySubscriber struct {
-    Subscriptions map[events.EventType]int  // conta quantas vezes cada tipo foi subscrito
+type Email string
+
+func ParseEmail(s string) (Email, error) {
+    // validações mínimas: não vazio, contém @, lowercase
 }
 
-var _ events.Subscriber = (*SpySubscriber)(nil)  // LSP compile-time
-
-func (s *SpySubscriber) Subscribe(et events.EventType, _ events.Handler) {
-    // implementa
-}
+func (e Email) String() string  { return string(e) }
+func (e Email) Domain() string  { /* parte depois do @ */ }
+func (e Email) IsEmpty() bool   { return e == "" }
 ```
 
-Usa-o para verificar que `activitylog.Service.RegisterHandlers` subscreve exactamente 9 tipos de eventos:
-```go
-spy := &testutil.SpySubscriber{Subscriptions: make(map[events.EventType]int)}
-svc.RegisterHandlers(spy)
-// verifica len(spy.Subscriptions) == 9
-```
+> **Nota GORM:** `type Email string` funciona directamente — GORM armazena como VARCHAR.
+> Não precisas de implementar `Scan`/`Value` — o tipo base é suficiente.
+
+Aplica a `Contact.Email` e actualiza os conversores no repositório.
 
 ---
 
-### Nível 3 — Rule no lead.Service (DIP + OCP)
+### Nível 3 — Caça aos níveis de indentação
 
-Aplica o mesmo padrão `Rule` ao `lead.Service`.
+Procura no codebase métodos com 2+ níveis de indentação:
 
-Cria `internal/lead/rules.go` com uma `Rule` interface e um `ContactExistsRule` que verifica que o `ContactID` no `CreateLeadDTO` corresponde a um contacto existente.
-
-```go
-type Rule interface {
-    Validate(dto CreateLeadDTO) error
-}
+```bash
+# Padrão: dois ou mais tabs/espaços seguidos de "for" ou "if"
+grep -rn "		if\|		for" internal/ --include="*.go"
 ```
 
-> **Nota:** Esta regra precisa de acesso ao `contact.Reader`. Como passas essa dependência?
-> Funcional options? Constructor injection? Campo na struct?
+Para cada ocorrência que encontrares:
+1. Identifica a regra violada (1? 2? ambas?)
+2. Refactoriza aplicando `slices.Contains`, extracção para função, ou guard clause
+3. Verifica que `go build ./...` continua a passar
 
 ---
 
 ## Perguntas de reflexão
 
-1. **SRP vs coesão:** Extrair `EventMapper` tornou o código mais fácil de entender ou mais fragmentado? Onde traças a linha entre "demasiado pequeno" e "responsabilidade única"?
+1. **Regra 3 vs. over-engineering:** `Money` faz sentido. Mas `type ContactID uuid.UUID`? Onde traças a linha entre "envolve o primitivo" e "indireção desnecessária"?
 
-2. **OCP e custo:** O padrão `Rule` adiciona indireção — há mais tipos, mais ficheiros. Quando vale a pena? Quando é over-engineering?
+2. **Regra 4 e performance:** `Contacts.FilterByCompany()` cria um novo slice. Em Go, slices são leves — mas se fizeres 3 filtros encadeados, crias 3 slices intermédios. Como resolvias com `iter.Seq` (Go 1.23+)?
 
-3. **LSP e interfaces largas:** Se `events.Publisher` tiver 10 métodos, é mais difícil escrever implementações de teste corretas. Como isso se relaciona com ISP?
+3. **Regra 6 e Go idiomático:** A comunidade Go tem convenções fortes para nomes curtos (`err`, `ctx`, `c`). Onde é que a Regra 6 entra em conflito com os idiomas Go? Como resolves o conflito?
 
 ---
 
-> Módulo seguinte: [branch-13-calisthenics](https://github.com/titi-byte-dev/gorm-crm/tree/branch-13-calisthenics) — Object Calisthenics: 9 regras de disciplina de código
+> Módulo seguinte: [branch-14-tests](https://github.com/titi-byte-dev/gorm-crm/tree/branch-14-tests) — Testes Automatizados: unitários, integração com testcontainers, e2e

@@ -4,17 +4,23 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 )
 
 type Service struct {
-	repo Repository
-	bus  events.Publisher
+	repo  Repository
+	bus   events.Publisher
+	rules []Rule
 }
 
-func NewService(repo Repository, bus events.Publisher) *Service {
-	return &Service{repo: repo, bus: bus}
+// NewService aceita regras de negocio opcionais via variadic.
+// OCP: para adicionar uma nova regra, passa-a aqui — Service.Create nao muda.
+// Sem regras passadas, aplica UniqueEmailRule por defeito.
+func NewService(repo Repository, bus events.Publisher, rules ...Rule) *Service {
+	if len(rules) == 0 {
+		rules = []Rule{UniqueEmailRule{}}
+	}
+	return &Service{repo: repo, bus: bus, rules: rules}
 }
 
 type CreateContactDTO struct {
@@ -33,10 +39,10 @@ type UpdateContactDTO struct {
 }
 
 func (s *Service) Create(ownerID uuid.UUID, dto CreateContactDTO) (*Contact, error) {
-	// Regra de negócio: email único por owner
-	existing, err := s.repo.FindByEmail(dto.Email)
-	if err == nil && existing != nil {
-		return nil, fmt.Errorf("email already exists: %w", sharederrors.ErrConflict)
+	for _, rule := range s.rules {
+		if err := rule.Validate(s.repo, dto); err != nil {
+			return nil, fmt.Errorf("contact rule: %w", err)
+		}
 	}
 
 	contact := &Contact{

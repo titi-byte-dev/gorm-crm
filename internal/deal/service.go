@@ -70,15 +70,18 @@ func (s *Service) MoveStage(id uuid.UUID, newStage Stage) (*Deal, error) {
 		return nil, fmt.Errorf("update deal: %w", err)
 	}
 
-	evtType := events.DealLost
-	if newStage == StageWon {
-		evtType = events.DealWon
-	}
 	if newStage.IsClosed() {
-		s.bus.Publish(events.Event{Type: evtType, Payload: updated, UserID: deal.OwnerID.String()})
+		s.bus.Publish(events.Event{Type: closedEventType(newStage), Payload: updated, UserID: deal.OwnerID.String()})
 	}
 
 	return updated, nil
+}
+
+func closedEventType(stage Stage) events.EventType {
+	if stage == StageWon {
+		return events.DealWon
+	}
+	return events.DealLost
 }
 
 func (s *Service) Delete(id uuid.UUID) error {

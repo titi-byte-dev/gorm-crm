@@ -1,6 +1,7 @@
 package lead
 
 import (
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -52,12 +53,7 @@ func (s Status) CanTransitionTo(next Status) bool {
 		StatusQualified: {StatusLost},
 		StatusLost:      {},
 	}
-	for _, allowed := range transitions[s] {
-		if allowed == next {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(transitions[s], next)
 }
 
 // Lead representa um potencial negócio no CRM.

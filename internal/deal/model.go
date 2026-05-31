@@ -1,6 +1,7 @@
 package deal
 
 import (
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -53,12 +54,7 @@ func (s Stage) CanTransitionTo(next Stage) bool {
 		StageWon:         {},
 		StageLost:        {},
 	}
-	for _, allowed := range transitions[s] {
-		if allowed == next {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(transitions[s], next)
 }
 
 // Deal representa um negócio em curso no CRM.

@@ -1,25 +1,24 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ Início](https://github.com/titi-byte-dev/gorm-crm/tree/main)** &nbsp;|&nbsp;
-`branch-01-setup` &nbsp;|&nbsp;
-**[M02 — Fundamentos Go ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-02-go-fundamentos)**
+**[⬅️ M01 — Setup](https://github.com/titi-byte-dev/gorm-crm/tree/branch-01-setup)** &nbsp;|&nbsp;
+`branch-02-go-fundamentos` &nbsp;|&nbsp;
+**[M03 — SQL & PostgreSQL ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-03-sql)**
 
-`█░░░░░░░░░░░░░░░░░░` Módulo **01 / 18** — Nível 🟢 Júnior
+`██░░░░░░░░░░░░░░░░░░` Módulo **02 / 18** — Nível 🟢 Júnior
 
 </div>
 
 ---
 
-# 📦 Módulo 01 — Setup & Estrutura Go
+# 🔤 Módulo 02 — Fundamentos Go
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![Fiber](https://img.shields.io/badge/Fiber-v2.52-00ACD7?style=flat)](https://gofiber.io)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Módulo](https://img.shields.io/badge/Módulo-01%20%2F%2018-brightgreen)](.)
+[![Testes](https://img.shields.io/badge/testes-18%20passing-brightgreen)](tests/unit/)
+[![Módulo](https://img.shields.io/badge/Módulo-02%20%2F%2018-brightgreen)](.)
 
-> **O que vais construir:** O esqueleto do GoRM CRM — projeto Go inicializado, servidor HTTP a correr e o primeiro endpoint funcional (`GET /health`).
+> **O que foi construído:** Os domain models do GoRM CRM — as structs, interfaces e lógica de negócio que representam Contactos, Leads, Deals, Tasks e Utilizadores. O Event Bus em goroutines para comunicação assíncrona.
 
 ---
 
@@ -27,277 +26,344 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Explicar a estrutura `cmd/`, `internal/`, `pkg/` e porquê existe
-- [ ] Criar e configurar um módulo Go (`go.mod`)
-- [ ] Montar um servidor HTTP com Fiber com middlewares básicos
-- [ ] Separar error handling numa camada dedicada
-- [ ] Usar um `Makefile` para automatizar tarefas comuns
+- [ ] Criar structs com tags JSON e perceber receivers de valor vs ponteiro
+- [ ] Definir e implementar interfaces implícitas (o idioma Go)
+- [ ] Usar tipos personalizados (`type Status string`) com métodos
+- [ ] Lançar goroutines e comunicar via channels
+- [ ] Escrever table-driven tests com `t.Parallel()`
+- [ ] Distinguir quando usar `*T` (ponteiro) vs `T` (valor)
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-01-setup
+git checkout branch-02-go-fundamentos
+go test ./tests/unit/...
 make run
 ```
-
-```bash
-# Noutro terminal
-curl http://localhost:8080/health
-# → {"service":"gorm-crm","status":"ok","version":"0.1.0"}
-```
-
-> [!TIP]
-> Não tens o `make`? Corre `go run ./cmd/api/main.go` diretamente.
 
 ---
 
 ## 🗺️ O que foi construído
 
 ```mermaid
-flowchart LR
-    A["go mod init\ngithub.com/titi-byte-dev/gorm-crm"] --> B
-
-    subgraph B["Standard Go Layout"]
-        direction TB
-        CMD["cmd/api/main.go\nentry point"]
-        INT["internal/shared/\nerrors · middleware"]
-        PKG["pkg/logger/\nlogging estruturado"]
+flowchart TD
+    subgraph MODELS["Domain Models"]
+        U["user.User\nRole: admin·manager·seller"]
+        C["contact.Contact\nFilters + Pagination"]
+        L["lead.Lead\nStatus com transições válidas"]
+        D["deal.Deal\nStage com pipeline de vendas"]
+        T["task.Task\nPriority · IsOverdue()"]
     end
 
-    B --> C["Fiber v2\nHTTP server"]
-    C --> D["Middlewares\nlogger · recover"]
-    D --> E["GET /health\n200 OK ✅"]
+    subgraph INTERFACES["Repository Interfaces"]
+        UR["user.Repository"]
+        CR["contact.Repository"]
+        LR["lead.Repository"]
+        DR["deal.Repository"]
+        TR["task.Repository"]
+    end
+
+    subgraph BUS["Event Bus"]
+        EB["events.Bus\nchannel + goroutine worker"]
+        EV["EventTypes\ncontact.created · deal.won · ..."]
+    end
+
+    U --> UR
+    C --> CR
+    L --> LR
+    D --> DR
+    T --> TR
+
+    EB --> EV
 ```
+
+---
+
+## 🔍 Conceitos Go — Explicados com código real
+
+### Structs e tags JSON
+
+```go
+type Deal struct {
+    ID        uuid.UUID  `json:"id"`
+    LeadID    *uuid.UUID `json:"lead_id,omitempty"` // pointer = opcional
+    ClosedAt  *time.Time `json:"closed_at,omitempty"` // nil enquanto aberto
+    CreatedAt time.Time  `json:"created_at"`
+}
+```
+
+> [!NOTE]
+> `*uuid.UUID` (ponteiro) em vez de `uuid.UUID` (valor) significa que o campo pode ser `nil`. Usa-se quando o campo é opcional — evita o "zero value" enganoso (`uuid.Nil`). O `omitempty` na tag JSON omite o campo quando é `nil`.
+
+---
+
+### Interfaces implícitas — a superpotência de Go
+
+```go
+// Definição — em contact/model.go
+type Repository interface {
+    FindByID(id uuid.UUID) (*Contact, error)
+    Save(contact *Contact) (*Contact, error)
+    // ...
+}
+
+// Implementação PostgreSQL — em contact/repository_pg.go (Módulo 03)
+type postgresRepository struct{ db *gorm.DB }
+
+func (r *postgresRepository) FindByID(id uuid.UUID) (*Contact, error) { ... }
+func (r *postgresRepository) Save(contact *Contact) (*Contact, error) { ... }
+// Satisfaz contact.Repository sem declaração explícita
+
+// Mock para testes — em tests/unit/
+type mockRepository struct{ contacts map[uuid.UUID]*Contact }
+
+func (m *mockRepository) FindByID(id uuid.UUID) (*Contact, error) { ... }
+// Também satisfaz contact.Repository — trocável sem alterar o Service
+```
+
+> [!IMPORTANT]
+> Em Java/C# declaras `implements Repository`. Em Go, **se tens os métodos, implementas a interface** — sem palavras-chave. Isto permite criar mocks de teste para qualquer interface, incluindo de bibliotecas externas.
+
+---
+
+### Tipos personalizados com comportamento
+
+<details>
+<summary><strong>Ver: Estado de um Lead com transições válidas</strong></summary>
+
+```go
+type Status string
+
+const (
+    StatusNew       Status = "new"
+    StatusContacted Status = "contacted"
+    StatusQualified Status = "qualified"
+    StatusLost      Status = "lost"
+)
+
+// CanTransitionTo encapsula as regras de negócio no tipo.
+// O caller não precisa de saber quais transições são válidas.
+func (s Status) CanTransitionTo(next Status) bool {
+    transitions := map[Status][]Status{
+        StatusNew:       {StatusContacted, StatusLost},
+        StatusContacted: {StatusQualified, StatusLost},
+        StatusQualified: {StatusLost},
+        StatusLost:      {},           // estado final
+    }
+    for _, allowed := range transitions[s] {
+        if allowed == next {
+            return true
+        }
+    }
+    return false
+}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> new
+    new --> contacted : CanTransitionTo ✅
+    new --> lost : CanTransitionTo ✅
+    contacted --> qualified : CanTransitionTo ✅
+    contacted --> lost : CanTransitionTo ✅
+    qualified --> lost : CanTransitionTo ✅
+    lost --> [*]
+    new --> qualified : ❌ inválido
+    qualified --> new : ❌ inválido
+```
+
+</details>
+
+---
+
+### Goroutines e Channels — o Event Bus
+
+<details>
+<summary><strong>Ver: Como funciona o Event Bus</strong></summary>
+
+```go
+// O Bus tem um channel com buffer — o publisher não bloqueia
+type Bus struct {
+    ch       chan Event  // channel com buffer de 500
+    handlers map[EventType][]Handler
+}
+
+// Publish — envia para o channel sem bloquear
+func (b *Bus) Publish(event Event) {
+    select {
+    case b.ch <- event:   // envia se houver espaço
+    default:              // descarta se o channel estiver cheio
+        b.logger.Warn("event bus full, dropping event")
+    }
+}
+
+// Start — lança uma goroutine que processa eventos em background
+func (b *Bus) Start(ctx context.Context) {
+    go func() {          // "go" lança a goroutine
+        for {
+            select {
+            case event := <-b.ch:   // recebe do channel
+                b.dispatch(ctx, event)
+            case <-ctx.Done():      // termina quando o contexto é cancelado
+                return
+            }
+        }
+    }()
+}
+```
+
+```mermaid
+sequenceDiagram
+    participant API as API Handler
+    participant Bus as Event Bus (channel)
+    participant W as Worker (goroutine)
+    participant H as Handlers
+
+    API->>Bus: Publish(ContactCreated)
+    Note over API,Bus: não bloqueia — channel tem buffer
+    Bus-->>API: ok, imediato
+
+    W->>Bus: recebe evento do channel
+    Bus-->>W: Event{ContactCreated, payload}
+    W->>H: dispatch para handlers registados
+    H-->>W: ActivityLogger, EmailNotifier, ...
+```
+
+> [!TIP]
+> A goroutine vive enquanto o contexto (`ctx`) estiver ativo. Quando a app faz shutdown, `cancel()` é chamado e `ctx.Done()` fecha a goroutine de forma limpa — sem goroutine leaks.
+
+</details>
+
+---
+
+### Receivers: valor vs ponteiro
+
+```go
+// Receiver de VALOR — não modifica a struct, trabalha numa cópia
+func (t Task) IsOverdue() bool {
+    if t.DueDate == nil { return false }
+    return time.Now().After(*t.DueDate)
+}
+
+// Receiver de PONTEIRO — quando o método modifica a struct
+// (veremos isto nos services do Módulo 03+)
+func (f *Filters) SetDefaults() {
+    if f.Page <= 0 { f.Page = 1 }  // modifica o original via ponteiro
+}
+```
+
+> [!NOTE]
+> Regra prática: usa receiver de **ponteiro** se o método modifica a struct ou se a struct é grande (evita cópia). Usa receiver de **valor** para operações de leitura em structs pequenas.
+
+---
+
+## 🧪 Testes neste módulo
+
+```bash
+go test -v ./tests/unit/...
+```
+
+<details>
+<summary><strong>Ver: Exemplo de table-driven test</strong></summary>
+
+```go
+func TestLeadStatus_CanTransitionTo(t *testing.T) {
+    t.Parallel()
+
+    tests := []struct {
+        name     string
+        from     lead.Status
+        to       lead.Status
+        expected bool
+    }{
+        {"new can go to contacted",        lead.StatusNew,       lead.StatusContacted, true},
+        {"new cannot skip to qualified",   lead.StatusNew,       lead.StatusQualified, false},
+        {"lost is a final state",          lead.StatusLost,      lead.StatusNew,       false},
+        // adicionar mais casos sem escrever mais código de setup
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            t.Parallel()  // cada sub-teste corre em paralelo
+            got := tt.from.CanTransitionTo(tt.to)
+            if got != tt.expected {
+                t.Errorf("got %v, want %v", got, tt.expected)
+            }
+        })
+    }
+}
+```
+
+</details>
 
 ---
 
 ## 📁 Ficheiros deste módulo
 
 <details>
-<summary><strong>Ver estrutura completa de pastas</strong></summary>
+<summary><strong>Ver ficheiros criados/modificados</strong></summary>
 
 ```
-gorm-crm/
-├── cmd/
-│   └── api/
-│       └── main.go              ← Entry point: Fiber + routes + error handler
-│
-├── internal/
-│   └── shared/
-│       ├── errors/
-│       │   └── errors.go        ← Sentinel errors + HTTP error handler global
-│       └── middleware/
-│           └── logger.go        ← Middleware de logging estruturado
-│
-├── pkg/
-│   └── logger/
-│       └── logger.go            ← slog: JSON em produção, texto em desenvolvimento
-│
-├── Makefile                     ← run · build · test · lint · tidy
-├── .env.example                 ← Variáveis de ambiente (todas as futuras incluídas)
-└── go.mod / go.sum              ← Módulo Go + dependências
+Criados:
+├── internal/contact/model.go        ← Contact struct + Repository interface + Filters
+├── internal/lead/model.go           ← Lead struct + Status + transições de estado
+├── internal/deal/model.go           ← Deal struct + Stage + pipeline de vendas
+├── internal/task/model.go           ← Task struct + Priority + IsOverdue()
+├── internal/user/model.go           ← User struct + Role
+├── internal/shared/events/events.go ← Event Bus: channel + goroutine worker
+├── tests/unit/lead_model_test.go    ← Table-driven tests para Lead.Status
+└── tests/unit/task_model_test.go    ← Table-driven tests para Task.IsOverdue
+
+Modificados:
+└── cmd/api/main.go                  ← Integra Event Bus + graceful shutdown
 ```
 
 </details>
 
 ---
 
-## 🔍 Walkthrough do Código
+## 🔄 O que vem a seguir
 
-### `cmd/api/main.go` — O ponto de entrada
-
-> [!NOTE]
-> Em Go, `main.go` dentro de `cmd/api/` separa o executável da lógica reutilizável. Se quiseres um segundo executável (ex: um CLI), crias `cmd/cli/main.go` sem duplicar código.
-
-```go
-app := fiber.New(fiber.Config{
-    AppName:      "GoRM CRM v0.1.0",
-    ErrorHandler: errors.Handler,   // ← centraliza todo o error handling
-})
-
-app.Use(recover.New())              // ← recupera de panics sem crashar
-app.Use(logger.New(...))            // ← loga cada request automaticamente
-```
-
----
-
-### `internal/shared/errors/errors.go` — Erros como valores
-
-> [!IMPORTANT]
-> Go não tem exceções. Erros são **valores de retorno** — esta é uma das diferenças mais importantes para quem vem de outras linguagens. Este ficheiro define os erros de domínio do GoRM e o mapeamento para códigos HTTP.
-
-```go
-var (
-    ErrNotFound     = errors.New("not found")      // → HTTP 404
-    ErrUnauthorized = errors.New("unauthorized")   // → HTTP 401
-    ErrForbidden    = errors.New("forbidden")      // → HTTP 403
-    ErrConflict     = errors.New("conflict")       // → HTTP 409
-    ErrValidation   = errors.New("validation error") // → HTTP 422
-)
-```
-
-**Padrão de uso** (nos módulos seguintes):
-```go
-// No service — devolve erro de domínio
-func (s *ContactService) GetContact(id uuid.UUID) (*Contact, error) {
-    contact, err := s.repo.FindByID(id)
-    if err != nil {
-        return nil, fmt.Errorf("get contact: %w", ErrNotFound)
-    }
-    return contact, nil
-}
-
-// No handler — não precisa saber o código HTTP
-// O ErrorHandler global trata disso
-```
-
----
-
-### `pkg/logger/logger.go` — Logging estruturado
-
-> [!NOTE]
-> `slog` é parte da stdlib desde Go 1.21. Em desenvolvimento, devolve texto legível. Em produção, devolve JSON que sistemas como Datadog/Loki conseguem indexar.
-
-```go
-// Desenvolvimento
-handler = slog.NewTextHandler(os.Stdout, ...)
-// → time=2026-06-01T10:00:00Z level=DEBUG msg="server started" port=8080
-
-// Produção
-handler = slog.NewJSONHandler(os.Stdout, ...)
-// → {"time":"2026-06-01T10:00:00Z","level":"INFO","msg":"server started","port":8080}
-```
-
----
-
-## 🧠 Conceitos-Chave
-
-<details>
-<summary><strong>Standard Go Layout — porquê esta estrutura?</strong></summary>
-
-```
-cmd/        → executáveis (um por subpasta)
-internal/   → código privado — só importável dentro deste módulo Go
-pkg/        → código reutilizável — pode ser importado por outros projetos
-```
-
-A pasta `internal/` é **reforçada pelo compilador Go** — se um projeto externo tentar importar algo de `internal/`, o build falha. Isto garante que as abstrações internas não "vazam" para fora.
-
-</details>
-
-<details>
-<summary><strong>Porque Fiber e não net/http nativo?</strong></summary>
-
-Ver [ADR-001](docs/adr/001-http-framework.md) para a decisão completa.
-
-Resumo: Fiber tem API familiar (similar a Express), alta performance, e permite ao estudante focar na lógica Go sem boilerplate HTTP. No módulo de performance (M17) analisamos o custo desta abstração.
-
-</details>
-
-<details>
-<summary><strong>O que é o Makefile e porquê usar?</strong></summary>
-
-```makefile
-make run        → go run ./cmd/api/main.go
-make build      → compila o binário em bin/
-make test       → go test -v -race ./...
-make lint       → golangci-lint run ./...
-make tidy       → go mod tidy
-```
-
-`.PHONY` diz ao Make que estes targets não são ficheiros — sem isso, se existir um ficheiro chamado `run`, o Make ignora o comando.
-
-</details>
-
----
-
-## 🔄 O que muda nos módulos seguintes
+> [!TIP]
+> No **Módulo 03**, cada `Repository interface` que definiste aqui vai ganhar uma implementação real em PostgreSQL. O padrão que estabeleceste agora é o que torna tudo trocável — mocks nos testes, PostgreSQL em produção, a mesma interface.
 
 ```mermaid
-flowchart TD
-    M01["✅ M01 — Estrutura\nFiber · health · errors"]
-    M02["M02 — Domain Models\nstructs · interfaces · goroutines"]
-    M03["M03 — PostgreSQL\nCRUD · GORM · migrations"]
-    M05["M05 — REST API\nrotas · middlewares · paginação"]
-    M06["M06 — Auth\nJWT · RBAC · refresh tokens"]
-
-    M01 -->|"adiciona models"| M02
-    M02 -->|"adiciona DB"| M03
-    M03 -->|"expande API"| M05
-    M05 -->|"adiciona segurança"| M06
-
-    style M01 fill:#22c55e,color:#fff
-    style M02 fill:#e5e7eb
+flowchart LR
+    M02["✅ M02\nInterfaces definidas\nModels criados"]
+    M03["M03 — SQL\nImplementar as interfaces\ncom GORM + PostgreSQL"]
+    M02 -->|"contact.Repository\n→ PostgreSQLRepo"| M03
+    style M02 fill:#22c55e,color:#fff
     style M03 fill:#e5e7eb
-    style M05 fill:#e5e7eb
-    style M06 fill:#e5e7eb
 ```
 
 ---
 
 ## 🎯 Desafio
 
-> [!TIP]
-> Antes de avançar para o módulo seguinte, experimenta o desafio deste módulo.
+Ver [CHALLENGE.md](CHALLENGE.md)
 
-**Ver:** [CHALLENGE.md](CHALLENGE.md)
-
-Resumo dos desafios disponíveis:
-- **Nível 1** — Endpoint `GET /api/v1/version` com `runtime.Version()`
-- **Nível 2** — Graceful shutdown com `os/signal`
-- **Nível 3** — Investigar o Standard Go Layout em detalhe
-
----
-
-## 📚 Recursos
-
-| Recurso | Porquê ler |
-|---------|-----------|
-| [Effective Go](https://go.dev/doc/effective_go) | Idiomas e convenções Go |
-| [Standard Go Layout](https://github.com/golang-standards/project-layout) | Porquê esta estrutura de pastas |
-| [Fiber Docs](https://docs.gofiber.io) | Referência completa do framework |
-| [slog (Go 1.21)](https://pkg.go.dev/log/slog) | Logging estruturado na stdlib |
-| [ADR-001](docs/adr/001-http-framework.md) | Porquê Fiber foi escolhido |
+- **Nível 1** — Adiciona um método `Contact.FullName()` que devolve nome + empresa
+- **Nível 2** — Adiciona validação de email com regex no model (sem bibliotecas externas)
+- **Nível 3** — Implementa um `MockContactRepository` que satisfaz a interface e escreve testes com ele
 
 ---
 
 ## ✅ Checklist antes de avançar
 
-- [ ] `make run` funciona e `GET /health` responde
-- [ ] Entendes a diferença entre `internal/` e `pkg/`
-- [ ] Sabes o que faz o `ErrorHandler` global
-- [ ] Leste (ou tentaste) pelo menos o Desafio Nível 1
+- [ ] `go test ./tests/unit/...` passa sem erros
+- [ ] Entendes a diferença entre interface implícita Go vs `implements` Java/C#
+- [ ] Sabes quando usar `*T` vs `T` num struct field
+- [ ] Consegues explicar o que é um channel com buffer e porque não bloqueia
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ Início](https://github.com/titi-byte-dev/gorm-crm/tree/main)** &nbsp;|&nbsp;
-`01 / 18` &nbsp;|&nbsp;
-**[M02 — Fundamentos Go ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-02-go-fundamentos)**
+**[⬅️ M01 — Setup](https://github.com/titi-byte-dev/gorm-crm/tree/branch-01-setup)** &nbsp;|&nbsp;
+`02 / 18` &nbsp;|&nbsp;
+**[M03 — SQL & PostgreSQL ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-03-sql)**
 
 </div>
-
----
-
-<details>
-<summary>📋 Sobre o curso GoRM</summary>
-
-**GoRM** é um curso de backend em Go com didática de autoconstrução. Cada branch Git é um módulo de aprendizagem — fazes `git checkout` e estás no contexto certo, com código funcional, documentação e desafios.
-
-```bash
-# Navegar entre módulos
-git checkout branch-01-setup        # este módulo
-git checkout branch-05-rest-api     # saltar para REST API
-git checkout branch-12-solid        # saltar para SOLID
-
-# Ver o que mudou num módulo
-git diff branch-01-setup..branch-02-go-fundamentos
-```
-
-Ver [docs/modules/overview.md](docs/modules/overview.md) para o mapa completo.
-
-</details>

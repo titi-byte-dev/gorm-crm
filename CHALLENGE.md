@@ -1,15 +1,13 @@
-# 🎯 CHALLENGE — Módulo 01: Setup & Estrutura Go
-
-> Cada módulo tem um desafio prático. Não há resposta errada — o objetivo é explorar.
+# 🎯 CHALLENGE — Módulo 02: Fundamentos Go
 
 ---
 
 ## O que já tens
 
-- Projeto Go inicializado com Fiber
-- `GET /health` funcional
-- Estrutura de pastas (`cmd/`, `internal/`, `pkg/`)
-- Makefile com comandos comuns
+- Domain models completos: `Contact`, `Lead`, `Deal`, `Task`, `User`
+- Repository interfaces definidas para cada domínio
+- Event Bus com goroutines e channels
+- Table-driven tests para `Lead.Status` e `Task.IsOverdue`
 
 ---
 
@@ -17,91 +15,86 @@
 
 ### Nível 1 — Obrigatório
 
-**1.1 — Adiciona um endpoint `GET /api/v1/version`**
+**1.1 — Método `Contact.DisplayName()`**
 
-Devolve informação sobre a versão da app:
+Adiciona ao model `Contact` um método que devolve uma representação legível:
 
-```json
-{
-  "version": "0.1.0",
-  "go_version": "go1.22",
-  "build_time": "2026-06-01T10:00:00Z"
-}
+```go
+// Se tiver empresa: "João Silva (Acme Corp)"
+// Se não tiver: "João Silva"
+func (c Contact) DisplayName() string { ... }
 ```
 
-Dicas:
-- O `go_version` pode ser obtido com o package `runtime`
-- O `build_time` pode ser injetado em compile-time via `-ldflags`
+Escreve um table-driven test para cobrir ambos os casos.
 
 ---
 
-**1.2 — Adiciona um middleware de `RequestID`**
+**1.2 — Validação de email no model**
 
-Cada request deve ter um ID único no header de resposta:
+Adiciona um método `Contact.ValidateEmail() error` que verifica se o email tem formato válido usando apenas a stdlib Go (package `regexp` ou `strings`).
 
+```go
+contact := Contact{Email: "nao-e-email"}
+err := contact.ValidateEmail()
+// err != nil
 ```
-X-Request-ID: 550e8400-e29b-41d4-a716-446655440000
-```
-
-Dicas:
-- Fiber tem um middleware `requestid` built-in
-- Ou usa o package `github.com/google/uuid` para gerar o ID manualmente
 
 ---
 
 ### Nível 2 — Exploração
 
-**2.1 — Graceful Shutdown**
+**2.1 — Implementa um `MockContactRepository`**
 
-A app deve terminar de forma limpa quando recebe `SIGTERM` ou `SIGINT` (Ctrl+C), esperando que os requests em curso terminem antes de fechar.
+Cria um mock que implementa `contact.Repository` usando um `map` em memória:
 
-Dicas:
-- `os/signal` para capturar sinais
-- `app.ShutdownWithTimeout(5 * time.Second)`
+```go
+type MockContactRepository struct {
+    contacts map[uuid.UUID]*contact.Contact
+    // Como garantir que o mock satisfaz a interface em compile-time?
+    // Dica: var _ contact.Repository = (*MockContactRepository)(nil)
+}
+```
+
+Escreve um teste que usa o mock para testar uma função que recebe `contact.Repository`.
 
 ---
 
-**2.2 — Endpoint `GET /api/v1/ping` com latência simulada**
+**2.2 — Adiciona `Deal.DurationDays()`**
 
-Adiciona um parâmetro de query `?delay=500` que simula latência em milissegundos.
-Observa o que aparece nos logs com o middleware de logger.
+Método que calcula quantos dias um deal esteve aberto (entre `CreatedAt` e `ClosedAt`).
+Se ainda estiver aberto, calcula até ao momento atual.
+
+```go
+deal.DurationDays() // int
+```
 
 ---
 
 ### Nível 3 — Investigação
 
-**3.1 — Lê sobre o Standard Go Layout**
+**3.1 — Goroutine leak**
 
-- Por que se usa `internal/` em vez de colocar tudo na raiz?
-- Qual a diferença entre `internal/` e `pkg/`?
-- O que é o `cmd/` e porquê ter uma pasta por executável?
+Cria um programa simples que demonstra um goroutine leak (goroutine que nunca termina).
+Depois corrige-o usando `context.WithCancel`.
 
-Referência: [github.com/golang-standards/project-layout](https://github.com/golang-standards/project-layout)
+Usa `runtime.NumGoroutine()` para verificar antes e depois.
 
----
+**3.2 — Interface satisfaction em compile-time**
 
-## Como submeter o teu trabalho
+Investiga este padrão e explica porque é útil:
 
-```bash
-# Cria uma branch pessoal a partir desta
-git checkout -b meu-m01-challenge
-
-# Faz as tuas alterações e commits
-git add -p
-git commit -m "feat: add version endpoint and request-id middleware"
-
-# Compara com a solução
-git diff branch-01-setup..meu-m01-challenge
+```go
+var _ contact.Repository = (*PostgreSQLContactRepository)(nil)
 ```
 
 ---
 
 ## Perguntas de reflexão
 
-1. O que acontece se correres dois processos Go na mesma porta? Experimenta.
-2. Qual a diferença entre `log.Fatal()` e `panic()`? Quando usar cada um?
-3. Porque é que o `Makefile` usa `.PHONY`? O que acontece sem isso?
+1. Porque é que Go usa interfaces implícitas em vez de `implements` explícito?
+2. Qual a diferença entre `make(chan Event)` e `make(chan Event, 500)`? O que acontece se o channel estiver cheio?
+3. Porque é que `Task.IsOverdue()` tem receiver de valor e `Filters.SetDefaults()` tem receiver de ponteiro?
 
 ---
 
-> Módulo seguinte: [branch-02-go-fundamentos](https://github.com/titi-byte-dev/gorm-crm/tree/branch-02-go-fundamentos) — Domain Models, Interfaces e Goroutines
+> Módulo seguinte: [branch-03-sql](https://github.com/titi-byte-dev/gorm-crm/tree/branch-03-sql) — PostgreSQL, GORM e CRUD de Contactos

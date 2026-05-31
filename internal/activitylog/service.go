@@ -8,13 +8,18 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 )
 
+// Service tem duas responsabilidades distintas, separadas por metodo:
+//   - Escrita: subscreve eventos e persiste logs (RegisterHandlers)
+//   - Leitura: query de logs (GetByEntity, GetByUser)
+// O EventMapper foi extraido para mapper.go — responsabilidade unica de mapeamento.
 type Service struct {
 	repo   Repository
 	logger *slog.Logger
+	mapper EventMapper
 }
 
 func NewService(repo Repository, logger *slog.Logger) *Service {
-	return &Service{repo: repo, logger: logger}
+	return &Service{repo: repo, logger: logger, mapper: EventMapper{}}
 }
 
 // RegisterHandlers subscreve todos os eventos relevantes no bus.
@@ -45,19 +50,8 @@ func (s *Service) RegisterHandlers(bus events.Subscriber) {
 // handleEvent corre na goroutine do bus — o handler HTTP já respondeu ao utilizador.
 // Falha silenciosa intencional: logs são "best effort", não críticos para o negócio.
 func (s *Service) handleEvent(ctx context.Context, event events.Event) {
-	log := &Log{
-		Action:  string(event.Type),
-		UserID:  event.UserID,
-		Payload: event.Payload,
-	}
-
-	// Extrai entity_type e entity_id do tipo de evento
-	entityType, entityID := entityFromEvent(event)
-	log.EntityType = entityType
-	log.EntityID = entityID
-
+	log := s.mapper.ToLog(event)
 	if err := s.repo.Save(log); err != nil {
-		// Log do erro mas não propaga — falhar um log não deve quebrar a operação principal
 		s.logger.Error("failed to save activity log", "event", event.Type, "error", err)
 	}
 }
@@ -78,33 +72,3 @@ func (s *Service) GetByUser(userID string, limit int) ([]*Log, error) {
 	return logs, nil
 }
 
-// entityFromEvent extrai o tipo e ID da entidade afectada pelo evento.
-func entityFromEvent(event events.Event) (entityType EntityType, entityID string) {
-	entityType = entityTypeFromEventType(event.Type)
-	// O payload é any — fazemos type assertion para extrair o ID
-	// Esta é a "taxa" pelo uso de interface{} — precisamos de lidar com cada tipo
-	switch p := event.Payload.(type) {
-	case interface{ GetID() string }:
-		entityID = p.GetID()
-	case map[string]string:
-		if id, ok := p["id"]; ok {
-			entityID = id
-		}
-	}
-	return entityType, entityID
-}
-
-func entityTypeFromEventType(et events.EventType) EntityType {
-	switch et {
-	case events.ContactCreated, events.ContactUpdated, events.ContactDeleted:
-		return EntityContact
-	case events.LeadCreated, events.LeadConverted, events.LeadLost:
-		return EntityLead
-	case events.DealWon, events.DealLost:
-		return EntityDeal
-	case events.TaskOverdue:
-		return EntityTask
-	default:
-		return EntityUnknown
-	}
-}

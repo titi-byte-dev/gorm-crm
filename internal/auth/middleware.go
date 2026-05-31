@@ -6,14 +6,14 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
+	"github.com/titi-byte-dev/gorm-crm/internal/shared/ctxutil"
 	"github.com/titi-byte-dev/gorm-crm/internal/user"
 )
 
-// contextKey é o nome das chaves usadas em c.Locals() para passar
-// dados do middleware para os handlers.
+// Aliases para as chaves de contexto definidas em ctxutil.
 const (
-	ContextUserID = "userID"
-	ContextRole   = "userRole"
+	ContextUserID = ctxutil.KeyUserID
+	ContextRole   = ctxutil.KeyRole
 )
 
 // Protected é o middleware de autenticação JWT.

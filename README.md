@@ -1,24 +1,24 @@
 <!-- NAVIGATION BAR -->
 <div align="center">
 
-**[⬅️ M05 — REST API](https://github.com/titi-byte-dev/gorm-crm/tree/branch-05-rest-api)** &nbsp;|&nbsp;
-`branch-06-auth` &nbsp;|&nbsp;
-**[M07 — Arquitetura MVC ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-07-mvc-layers)**
+**[⬅️ M06 — Autenticação](https://github.com/titi-byte-dev/gorm-crm/tree/branch-06-auth)** &nbsp;|&nbsp;
+`branch-07-mvc-layers` &nbsp;|&nbsp;
+**[M08 — Docker ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-08-docker)**
 
-`██████░░░░░░░░░░░░░░` Módulo **06 / 18** — Nível 🟢 Júnior
+`███████░░░░░░░░░░░░░` Módulo **07 / 18** — Nível 🟢 Júnior
 
 </div>
 
 ---
 
-# 🔐 Módulo 06 — Autenticação & Autorização
+# 🏗️ Módulo 07 — Arquitectura MVC em Camadas
 
 [![CI](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/titi-byte-dev/gorm-crm/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![JWT](https://img.shields.io/badge/JWT-HS256-000000?style=flat&logo=jsonwebtokens)](.)
-[![Módulo](https://img.shields.io/badge/Módulo-06%20%2F%2018-brightgreen)](.)
+[![Testes](https://img.shields.io/badge/testes-passing-brightgreen)](tests/unit/)
+[![Módulo](https://img.shields.io/badge/Módulo-07%20%2F%2018-brightgreen)](.)
 
-> **O que foi construído:** A API deixou de ser pública. JWT com access + refresh tokens, bcrypt para passwords, RBAC com roles (admin/manager/seller) e todas as rotas protegidas por middleware.
+> **O que foi construído:** O domínio Tasks completo (handler/service/repository). Formalização da arquitectura em camadas com ADR, testes unitários que provam o valor da separação — sem DB, sem HTTP.
 
 ---
 
@@ -26,170 +26,142 @@
 
 Ao terminar este módulo consegues:
 
-- [ ] Explicar a diferença entre autenticação e autorização
-- [ ] Implementar bcrypt e perceber porquê é lento por design
-- [ ] Criar e validar JWTs com claims personalizados
-- [ ] Usar middleware para proteger grupos de rotas
-- [ ] Implementar RBAC com hierarquia de roles
+- [ ] Explicar a responsabilidade exacta de cada camada
+- [ ] Identificar quando um código está na camada errada
+- [ ] Escrever um mock de repository para testes unitários
+- [ ] Testar lógica de negócio sem servidor HTTP nem DB
+- [ ] Explicar Dependency Injection manual em Go
 
 ---
 
 ## ⚡ Começa já
 
 ```bash
-git checkout branch-06-auth
-cp .env.example .env
-# Edita .env e adiciona: JWT_SECRET=uma-chave-secreta-longa
-
+git checkout branch-07-mvc-layers
+go test ./tests/unit/...     # testes sem DB
 docker-compose up -d postgres
 make run
 ```
 
-```bash
-# 1. Criar conta
-curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Ana Silva","email":"ana@empresa.com","password":"segredo123","role":"seller"}'
-
-# 2. Login — guarda o access_token
-curl -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"ana@empresa.com","password":"segredo123"}'
-
-# 3. Aceder à API com o token
-curl http://localhost:8080/api/v1/contacts \
-  -H "Authorization: Bearer <access_token>"
-
-# Sem token → 401 Unauthorized
-curl http://localhost:8080/api/v1/contacts
-```
-
 ---
 
-## 🗺️ Como este módulo foi construído — commit a commit
-
-> [!TIP]
-> Corre `git log --oneline branch-05-rest-api..branch-06-auth` para ver todos os commits deste módulo com as suas explicações.
+## 🗺️ A Arquitectura — Regra de Dependência
 
 ```mermaid
 flowchart LR
-    C1["chore: add JWT\n+ bcrypt deps\nPorquê estes packages?"]
-    C2["feat: bcrypt\npassword hashing\nSalt · custo · timing"]
-    C3["feat: JWT\ngeneration + validation\nHeader·Payload·Signature"]
-    C4["feat: JWT\nmiddleware + RBAC\nProtected · RequireRole"]
-    C5["feat: auth\nservice\nUser enumeration · refresh"]
-    C6["feat: handler\n+ user repository\njson:\"-\" · /me endpoint"]
-    C7["refactor: replace\nhardcoded ownerID\nctxutil · DRY"]
-    C8["feat: wire auth\nprotect all routes\nroute groups"]
-    C9["feat: tasks\nmigration\nPartial index"]
+    subgraph HTTP["🌐 Handler — só HTTP"]
+        H["parse · validate\ncall service · serialize"]
+    end
+    subgraph BIZ["⚙️ Service — só domínio"]
+        S["regras de negócio\norquestração · eventos"]
+    end
+    subgraph DATA["🗄️ Repository — só DB"]
+        R["SQL · GORM\ndomain ↔ record"]
+    end
+    subgraph INFRA["🔧 Infra"]
+        DB[("PostgreSQL")]
+    end
 
-    C1-->C2-->C3-->C4-->C5-->C6-->C7-->C8-->C9
+    HTTP -->|"DTO validado"| BIZ
+    BIZ -->|"interface"| DATA
+    DATA --> INFRA
+
+    style HTTP fill:#dbeafe,stroke:#3b82f6
+    style BIZ fill:#dcfce7,stroke:#22c55e
+    style DATA fill:#fef9c3,stroke:#f59e0b
 ```
+
+> [!IMPORTANT]
+> **Regra:** as dependências só apontam para baixo. Handler → Service → Repository. Um Service que importa `fiber` é um bug de arquitectura. Um Repository que contém lógica de negócio também.
 
 ---
 
-## 🔍 Conceitos-Chave
-
-### JWT — Anatomia do token
-
-```
-eyJhbGciOiJIUzI1NiJ9 . eyJ1aWQiOiIxMjMiLCJyb2xlIjoic2VsbGVyIn0 . SflKxwRJS...
-      HEADER                         PAYLOAD                          SIGNATURE
-   (algoritmo)              (userID, role, exp, iat)              (HMAC do resto)
-```
-
-> [!WARNING]
-> O Payload é apenas **Base64**, não encriptado. Qualquer um com o token consegue ler o conteúdo. **Nunca colocar passwords, dados de pagamento ou informação sensível no JWT.**
-
----
-
-### bcrypt — Lento por design
+## 🔍 O valor das camadas — em código
 
 <details>
-<summary><strong>Ver: porquê 250ms é uma feature, não um bug</strong></summary>
+<summary><strong>Ver: testar regra de negócio sem DB nem HTTP</strong></summary>
 
 ```go
-const bcryptCost = 12  // ~250ms numa máquina moderna
+// tests/unit/task_service_test.go
+// Zero dependências externas — corre em < 1ms
 
-// Dois hashes da mesma password são SEMPRE diferentes
-hash1, _ := HashPassword("segredo123")  // $2a$12$abc...xyz
-hash2, _ := HashPassword("segredo123")  // $2a$12$def...uvw  ← diferente!
+func TestTaskService_UpdateStatus_BlocksReopeningFinalTask(t *testing.T) {
+    // MockRepository — implementa task.Repository sem DB
+    svc := task.NewService(newMockRepo(), events.New(10, log))
 
-// A comparação é sempre em constant-time
-CheckPassword("segredo123", hash1)  // true
+    // Criar e completar uma task
+    created, _ := svc.Create(task.CreateTaskDTO{Title: "Tarefa", ...})
+    svc.UpdateStatus(created.ID, task.StatusDone)
+
+    // Tentar reabrir → deve falhar
+    _, err := svc.UpdateStatus(created.ID, task.StatusTodo)
+    if err == nil {
+        t.Fatal("expected error — done tasks cannot be reopened")
+    }
+}
 ```
 
-**Porquê 250ms é bom:**
-- Para um utilizador: imperceptível (login demora 300ms no total)
-- Para um atacante com GPU: 10.000 tentativas/segundo × 250ms = inviável
-
-**Porquê não SHA256:**
-- SHA256 faz ~1 bilião de hashes/segundo numa GPU moderna
-- 10 caracteres alfanuméricos: ~7 minutos para quebrar
-- Com bcrypt cost 12: ~200 anos
+**Sem camadas, este teste seria:**
+```go
+// Com tudo misturado no handler:
+// - Precisávamos de um servidor Fiber a correr
+// - Precisávamos de PostgreSQL com dados
+// - O teste demoraria ~500ms e quebraria se o DB estivesse em baixo
+```
 
 </details>
 
 ---
 
-### RBAC — Route Groups com middleware
-
 <details>
-<summary><strong>Ver: como as rotas ficam organizadas</strong></summary>
+<summary><strong>Ver: como identificar código na camada errada</strong></summary>
 
 ```go
-v1 := app.Group("/api/v1")
+// ❌ Regra de negócio no Handler — errado
+func (h *Handler) UpdateStatus(c *fiber.Ctx) error {
+    task, _ := h.db.First(&rec, id)         // SQL no handler
+    if task.Status == "done" {              // regra de negócio no handler
+        return c.Status(422).JSON(...)
+    }
+    // ...
+}
 
-// Públicas — sem middleware
-auth.RegisterRoutes(v1, authSvc)
+// ✅ Handler delega tudo ao Service
+func (h *Handler) UpdateStatus(c *fiber.Ctx) error {
+    c.BodyParser(&body)                     // só HTTP
+    validate.Check(body)                    // só validação de input
+    task, err := h.svc.UpdateStatus(id, body.Status)  // delega
+    return response.OK(c, task)             // só serialização
+}
 
-// Protegidas — Protected() corre antes de qualquer handler
-protected := v1.Use(auth.Protected())
-contact.RegisterRoutes(protected, contactSvc)
-
-// Só admins — RequireRole corre depois de Protected()
-adminOnly := protected.Use(auth.RequireRole(user.RoleAdmin))
-// user.RegisterRoutes(adminOnly, userSvc)  ← Módulo 07
-```
-
-**Hierarquia:**
-```
-admin (3) → pode tudo
-manager (2) → pode o que manager e seller podem
-seller (1) → acesso básico
+// ✅ Regra no Service — correcto
+func (s *Service) UpdateStatus(id uuid.UUID, newStatus Status) (*Task, error) {
+    task, _ := s.repo.FindByID(id)          // usa interface
+    if task.Status.IsFinal() {              // regra de negócio aqui
+        return nil, ErrValidation
+    }
+    // ...
+}
 ```
 
 </details>
 
 ---
 
-## 📁 Ficheiros deste módulo
-
-<details>
-<summary><strong>Ver ficheiros criados/modificados</strong></summary>
+## 📁 Estado completo da API após este módulo
 
 ```
-Criados:
-├── internal/auth/
-│   ├── password.go    ← bcrypt hash + check
-│   ├── jwt.go         ← GenerateTokenPair + ValidateToken
-│   ├── middleware.go  ← Protected() + RequireRole() + RBAC hierarchy
-│   ├── service.go     ← Register, Login (user enumeration safe), Refresh
-│   └── handler.go     ← /register /login /refresh /me
-├── internal/user/
-│   └── repository_pg.go
-├── internal/shared/
-│   └── ctxutil/ctxutil.go  ← OwnerID(c) helper partilhado
-└── migrations/005_create_tasks.up/down.sql
-
-Modificados:
-├── internal/contact/handler.go  ← ownerID via ctxutil
-├── internal/lead/handler.go     ← ownerID via ctxutil
-├── internal/deal/handler.go     ← ownerID via ctxutil
-└── cmd/api/main.go              ← auth wired + protected route group
+/api/v1/
+├── auth/
+│   ├── POST   /register
+│   ├── POST   /login
+│   ├── POST   /refresh
+│   └── GET    /me
+├── contacts/     ← CRUD + filtros + paginação
+├── leads/        ← CRUD + state machine de status
+├── deals/        ← CRUD + pipeline de stages
+└── tasks/        ← CRUD + /overdue + state machine    ← NOVO
 ```
-
-</details>
 
 ---
 
@@ -197,26 +169,26 @@ Modificados:
 
 Ver [CHALLENGE.md](CHALLENGE.md)
 
-- **Nível 1** — Testa user enumeration: tenta login com email que não existe vs password errada — as respostas são iguais?
-- **Nível 2** — Implementa `PATCH /auth/password` para alterar password (requer token válido)
-- **Nível 3** — Adiciona um endpoint só para admins e testa com um token de seller
+- **Nível 1** — Adiciona um `MockContactRepository` e testa `ContactService.Create` com email duplicado
+- **Nível 2** — Tenta adicionar lógica de negócio ao Handler propositadamente — o que muda nos testes?
+- **Nível 3** — Implementa `GET /api/v1/contacts/:id/tasks` usando a arquitectura correcta
 
 ---
 
 ## ✅ Checklist antes de avançar
 
-- [ ] Fluxo completo testado: register → login → usar API → refresh
-- [ ] Tentaste aceder a `/contacts` sem token — viste 401?
-- [ ] Consegues explicar a diferença entre o access e o refresh token
-- [ ] Entendes porquê o bcrypt é lento propositadamente
+- [ ] `go test ./tests/unit/...` passa — sem DB, sem servidor
+- [ ] Consegues explicar porquê `task.Service` não importa `fiber`
+- [ ] Entendes a diferença entre `var _ task.Repository = (*mock)(nil)` e um teste normal
+- [ ] Sabes onde colocar uma nova regra de negócio (e onde NÃO colocar)
 
 ---
 
 <!-- NAVIGATION BAR BOTTOM -->
 <div align="center">
 
-**[⬅️ M05 — REST API](https://github.com/titi-byte-dev/gorm-crm/tree/branch-05-rest-api)** &nbsp;|&nbsp;
-`06 / 18` &nbsp;|&nbsp;
-**[M07 — Arquitetura MVC ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-07-mvc-layers)**
+**[⬅️ M06 — Autenticação](https://github.com/titi-byte-dev/gorm-crm/tree/branch-06-auth)** &nbsp;|&nbsp;
+`07 / 18` &nbsp;|&nbsp;
+**[M08 — Docker ➡️](https://github.com/titi-byte-dev/gorm-crm/tree/branch-08-docker)**
 
 </div>

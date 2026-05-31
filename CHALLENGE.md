@@ -1,60 +1,70 @@
-# 🎯 CHALLENGE — Módulo 06: Autenticação & Autorização
+# 🎯 CHALLENGE — Módulo 07: Arquitectura MVC em Camadas
 
 ---
 
-### Nível 1 — Segurança observável
+### Nível 1 — Testa com mock
 
-**Testa user enumeration protection**
+**`MockContactRepository` e teste de email duplicado**
 
-Faz dois pedidos:
-```bash
-# Email que não existe
-curl -X POST /api/v1/auth/login -d '{"email":"nao-existe@x.com","password":"qualquer"}'
+Cria um mock para `contact.Repository` em `tests/unit/contact_service_test.go` e testa:
 
-# Email que existe, password errada
-curl -X POST /api/v1/auth/login -d '{"email":"ana@empresa.com","password":"errada"}'
+```go
+func TestContactService_Create_DuplicateEmail(t *testing.T) {
+    svc := contact.NewService(newMockContactRepo(), bus)
+
+    dto := contact.CreateContactDTO{Name: "Ana", Email: "ana@x.com", ...}
+    svc.Create(ownerID, dto)           // primeiro — ok
+    _, err := svc.Create(ownerID, dto) // segundo — deve falhar com ErrConflict
+
+    if err == nil { t.Fatal("expected conflict error") }
+}
 ```
 
-As respostas devem ser **idênticas** — mesmo status, mesmo body. Se forem diferentes, a API revela quais emails existem.
+Sem DB, sem servidor. Corre em < 1ms.
 
 ---
 
-### Nível 2 — Exploração
+### Nível 2 — Experiência didáctica
 
-**`PATCH /api/v1/auth/password`** — alterar password
+**Quebra a arquitectura propositadamente e observa o impacto**
 
-Requer token válido. Input:
-```json
-{ "current_password": "...", "new_password": "..." }
+Muda o `task.Service.UpdateStatus` para aceitar `*fiber.Ctx` em vez de `task.Status`:
+
+```go
+// ❌ Propositadamente errado
+func (s *Service) UpdateStatus(c *fiber.Ctx, id uuid.UUID) (*Task, error) {
+    newStatus := Status(c.Query("status"))
+    // ...
+}
 ```
 
-Lógica:
-1. Extrair userID do token
-2. Ir ao DB buscar o user
-3. Verificar `current_password` com `CheckPassword`
-4. Fazer hash da `new_password` e guardar
+Tenta correr os testes unitários. O que acontece? Porquê?
+
+Reverte a mudança e escreve no teu diário o que aprendeste.
 
 ---
 
-### Nível 3 — RBAC em prática
+### Nível 3 — Feature nova com arquitectura correcta
 
-Adiciona um endpoint `GET /api/v1/admin/users` que lista todos os utilizadores.
-Protege-o com `RequireRole(user.RoleAdmin)`.
+**`GET /api/v1/contacts/:id/tasks`**
 
-Testa:
-```bash
-# Com token de seller → 403 Forbidden
-# Com token de admin  → 200 OK com lista de users
-```
+Devolve as tasks associadas a um contacto.
+
+A lógica certa:
+1. `task.Repository` já tem `FindByContact(contactID)` — usar
+2. Quem chama? O `contact.Handler`? O `task.Handler`? Porquê?
+3. Precisa de um novo Service method? Ou acede ao repo directo?
+
+Pensa antes de codificar. A resposta "certa" depende das tuas razões.
 
 ---
 
 ## Perguntas de reflexão
 
-1. O JWT expira mas o utilizador continua com o token — quando é que isso é um problema real?
-2. O que é um "token blacklist" e quando precisarias de um?
-3. Qual a diferença entre `401 Unauthorized` e `403 Forbidden`?
+1. Se o Service precisar de enviar um email, onde deve estar esse código?
+2. O que significa "testabilidade" e como as camadas a melhoram?
+3. Há situações em que a separação em 3 camadas é excessiva? Quando simplificarias?
 
 ---
 
-> Módulo seguinte: [branch-07-mvc-layers](https://github.com/titi-byte-dev/gorm-crm/tree/branch-07-mvc-layers) — Separação em camadas, interfaces e injeção de dependências
+> Módulo seguinte: [branch-08-docker](https://github.com/titi-byte-dev/gorm-crm/tree/branch-08-docker) — Dockerfile, docker-compose e o ambiente de desenvolvimento completo

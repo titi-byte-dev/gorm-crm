@@ -1,58 +1,84 @@
-# 🎯 CHALLENGE — Módulo 10: Clean Code Principles
+# 🎯 CHALLENGE — Módulo 17: Performance & Cache
 
 ---
 
-### Nível 1 — Caça aos números mágicos
+### Nível 1 — FindByIDs em lead.Repository
 
-Encontra mais 2 números mágicos no codebase que ainda não foram nomeados:
+O `contact.Repository` ganhou `FindByIDs` para eliminar N+1. Faz o mesmo para `lead`:
 
-```bash
-# Procura por números literais no código Go
-grep -rn "[0-9]\+" internal/ pkg/ cmd/ --include="*.go" | grep -v "_test.go" | grep -v "//.*[0-9]"
-```
-
-Para cada um que encontrares:
-1. Percebe o que representa
-2. Dá-lhe um nome descritivo
-3. Define como constante no ficheiro adequado
-
----
-
-### Nível 2 — Renomear em vez de comentar
-
-Encontra um comentário no codebase que explica O QUÊ o código faz (não o PORQUÊ).
-Tenta **renomear** uma variável, função ou tipo para tornar o comentário desnecessário.
-
-Exemplo do tipo de coisa a procurar:
 ```go
-// verifica se o token expirou
-if time.Now().After(exp) { ... }
+// internal/lead/model.go
+type Repository interface {
+    // ...
+    FindByIDs(ids []uuid.UUID) ([]*Lead, error)
+}
 
-// Solução: extrair para função com nome expressivo
-if tokenIsExpired(exp) { ... }
+// internal/lead/repository_pg.go
+func (r *postgresRepository) FindByIDs(ids []uuid.UUID) ([]*Lead, error) {
+    if len(ids) == 0 {
+        return nil, nil
+    }
+    var recs []leadRecord
+    // GORM com WHERE id IN ?
+}
 ```
+
+Escreve um teste unitário com mock que verifica que `FindByIDs` com 3 IDs devolve exactamente os 3 leads correspondentes.
+
+> **Pergunta:** O que acontece se `ids` tiver duplicados? O PostgreSQL devolve duplicados também. Deves deduplicar antes de enviar, ou aceitar duplicados e deixar o caller lidar?
 
 ---
 
-### Nível 3 — Early return num handler
+### Nível 2 — Stats na Cache TTL
 
-Olha para os handlers em `internal/*/handler.go`. Encontra um que tenha um `if/else` onde o else podia ser evitado com early return ou extracção de função.
+Estende `pkg/cache.TTL` com contadores atómicos de hits e misses:
 
-Refactora-o mantendo o comportamento exactamente igual.
-Verifica com:
-```bash
-go test ./...
-# comportamento não mudou
+```go
+type TTL[K comparable, V any] struct {
+    mu    sync.Map
+    ttl   time.Duration
+    hits  atomic.Int64
+    misses atomic.Int64
+}
+
+func (c *TTL[K, V]) Stats() (hits, misses int64) {
+    return c.hits.Load(), c.misses.Load()
+}
 ```
+
+Usa `sync/atomic` — não `mu sync.Mutex` — para não bloquear `Get` só para contar.
+
+> **Pergunta:** `atomic.Int64` vs `sync.Mutex` para os contadores — qual é a diferença de performance? Em que caso usarias Mutex de qualquer forma?
+
+---
+
+### Nível 3 — CachingLeadRepo + composição completa
+
+Cria `pkg/decorator/lead_cache.go` seguindo o mesmo padrão que `contact_cache.go`.
+
+Depois, no `cmd/server` (ou num teste de integração), compõe a cadeia completa:
+
+```go
+leadRepo := decorator.NewLeadRepoLogger(
+    decorator.NewCachingLeadRepo(lead.NewPostgresRepository(db), 5*time.Minute),
+    logger,
+)
+```
+
+> **Pergunta:** `CachingContactRepo` e `CachingLeadRepo` são quase idênticos. Poderias criar um único `CachingRepo[T any]` genérico? Qual é o obstáculo principal?
 
 ---
 
 ## Perguntas de reflexão
 
-1. Há situações em que um comentário que explica O QUÊ é aceitável? (pensa em código de performance crítica com operações de bit)
-2. Porque é que `type EntityType string` em vez de `type EntityType int`? Qual a diferença na prática?
-3. O princípio "funções pequenas" tem um limite? Quando é que extrair mais funções piora o código?
+1. **Cache invalidation:** "There are only two hard problems in computer science: cache invalidation and naming things." O `Delete` invalida, o `Update` aquece. Mas e o `FindAll`? Se um contacto é actualizado, a lista pode estar desactualizada. Como resolves?
+
+2. **Composite index ordem:** `(owner_id, stage)` é diferente de `(stage, owner_id)`. Numa query `WHERE owner_id = ? AND stage = ?` qual deles é mais eficiente? E se a query for só `WHERE stage = ?`?
+
+3. **N+1 vs JOIN:** A solução de batch loading usa 2 queries separadas. Uma alternativa seria um JOIN. Quando escolherias JOIN em vez de batch loading em Go?
+
+4. **TTL vs LRU:** A cache usa TTL (expiração por tempo). Uma cache LRU expira por uso. Em que cenário usarias LRU em vez de TTL neste CRM?
 
 ---
 
-> Módulo seguinte: [branch-11-oop](https://github.com/titi-byte-dev/gorm-crm/tree/branch-11-oop) — OOP Avançado: interfaces, composição e DRY/KISS/YAGNI
+> Módulo seguinte: [branch-18-cicd](https://github.com/titi-byte-dev/gorm-crm/tree/branch-18-cicd) — Cloud & CI/CD: Dockerfile, GitHub Actions, deploy

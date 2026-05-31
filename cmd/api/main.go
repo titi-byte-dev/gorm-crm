@@ -13,6 +13,7 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/internal/contact"
 	"github.com/titi-byte-dev/gorm-crm/internal/deal"
 	"github.com/titi-byte-dev/gorm-crm/internal/lead"
+	"github.com/titi-byte-dev/gorm-crm/internal/task"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/middleware"
@@ -43,7 +44,7 @@ func main() {
 	bus.Start(ctx)
 
 	app := fiber.New(fiber.Config{
-		AppName:      "GoRM CRM v0.6.0",
+		AppName:      "GoRM CRM v0.7.0",
 		ErrorHandler: sharederrors.Handler,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -80,7 +81,7 @@ func main() {
 
 func registerRoutes(app *fiber.App, db *gorm.DB, bus *events.Bus) {
 	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok", "service": "gorm-crm", "version": "0.6.0"})
+		return c.JSON(fiber.Map{"status": "ok", "service": "gorm-crm", "version": "0.7.0"})
 	})
 
 	v1 := app.Group("/api/v1")
@@ -96,4 +97,5 @@ func registerRoutes(app *fiber.App, db *gorm.DB, bus *events.Bus) {
 	contact.RegisterRoutes(protected, contact.NewService(contact.NewPostgresRepository(db), bus))
 	lead.RegisterRoutes(protected, lead.NewService(lead.NewPostgresRepository(db), bus))
 	deal.RegisterRoutes(protected, deal.NewService(deal.NewPostgresRepository(db), bus))
+	task.RegisterRoutes(protected, task.NewService(task.NewPostgresRepository(db), bus))
 }

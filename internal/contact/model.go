@@ -15,6 +15,7 @@ type Contact struct {
 	Company   string    `json:"company,omitempty"`
 	Notes     string    `json:"notes,omitempty"`
 	OwnerID   uuid.UUID `json:"owner_id"`
+	TenantID  uuid.UUID `json:"tenant_id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -23,7 +24,7 @@ type Contact struct {
 // A implementação concreta (PostgreSQL, mock para testes) fica noutro ficheiro.
 type Repository interface {
 	FindByID(id uuid.UUID) (*Contact, error)
-	FindAll(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, error)
+	FindAll(tenantID, ownerID uuid.UUID, isManager bool, filters Filters) ([]*Contact, int64, error)
 	FindByEmail(email string) (*Contact, error)
 	Save(contact *Contact) (*Contact, error)
 	Update(contact *Contact) (*Contact, error)

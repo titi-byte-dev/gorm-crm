@@ -15,6 +15,7 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/internal/contact"
 	"github.com/titi-byte-dev/gorm-crm/internal/deal"
 	"github.com/titi-byte-dev/gorm-crm/internal/lead"
+	"github.com/titi-byte-dev/gorm-crm/internal/organization"
 	"github.com/titi-byte-dev/gorm-crm/internal/task"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
@@ -133,7 +134,7 @@ func registerRoutes(app *fiber.App, db *gorm.DB, mongoDB *mongo.Database, bus *e
 
 	v1 := app.Group("/api/v1")
 
-	authSvc := auth.NewService(user.NewPostgresRepository(db))
+	authSvc := auth.NewService(user.NewPostgresRepository(db), organization.NewPostgresRepository(db))
 	auth.RegisterRoutes(v1, authSvc)
 
 	protected := v1.Use(auth.Protected())

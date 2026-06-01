@@ -20,6 +20,7 @@ type taskRecord struct {
 	Priority    string     `gorm:"not null;default:'medium'"`
 	Status      string     `gorm:"not null;default:'todo'"`
 	AssignedTo  uuid.UUID  `gorm:"type:uuid;not null;index"`
+	TenantID    uuid.UUID  `gorm:"type:uuid;not null;index"`
 	ContactID   *uuid.UUID `gorm:"type:uuid;index"`
 	DealID      *uuid.UUID `gorm:"type:uuid;index"`
 	DueDate     *time.Time
@@ -50,9 +51,12 @@ func (r *postgresRepository) FindByID(id uuid.UUID) (*Task, error) {
 	return recordToTask(rec), nil
 }
 
-func (r *postgresRepository) FindAll(assignedTo uuid.UUID, filters Filters) ([]*Task, int64, error) {
+func (r *postgresRepository) FindAll(tenantID, assignedTo uuid.UUID, isManager bool, filters Filters) ([]*Task, int64, error) {
 	filters.SetDefaults()
-	query := r.db.Model(&taskRecord{}).Where("assigned_to = ?", assignedTo)
+	query := r.db.Model(&taskRecord{}).Where("tenant_id = ?", tenantID)
+	if !isManager {
+		query = query.Where("assigned_to = ?", assignedTo)
+	}
 	if filters.Status != "" {
 		query = query.Where("status = ?", filters.Status)
 	}
@@ -74,13 +78,17 @@ func (r *postgresRepository) FindAll(assignedTo uuid.UUID, filters Filters) ([]*
 
 func (r *postgresRepository) FindByContact(contactID uuid.UUID) ([]*Task, error) {
 	var recs []taskRecord
-	r.db.Where("contact_id = ?", contactID).Find(&recs)
+	if err := r.db.Where("contact_id = ?", contactID).Find(&recs).Error; err != nil {
+		return nil, fmt.Errorf("find tasks by contact: %w", err)
+	}
 	return recsToTasks(recs), nil
 }
 
 func (r *postgresRepository) FindByDeal(dealID uuid.UUID) ([]*Task, error) {
 	var recs []taskRecord
-	r.db.Where("deal_id = ?", dealID).Find(&recs)
+	if err := r.db.Where("deal_id = ?", dealID).Find(&recs).Error; err != nil {
+		return nil, fmt.Errorf("find tasks by deal: %w", err)
+	}
 	return recsToTasks(recs), nil
 }
 
@@ -134,7 +142,8 @@ func recordToTask(r taskRecord) *Task {
 	return &Task{
 		ID: r.ID, Title: r.Title, Description: r.Description,
 		Priority: Priority(r.Priority), Status: Status(r.Status),
-		AssignedTo: r.AssignedTo, ContactID: r.ContactID, DealID: r.DealID,
+		AssignedTo: r.AssignedTo, TenantID: r.TenantID,
+		ContactID: r.ContactID, DealID: r.DealID,
 		DueDate: r.DueDate, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
@@ -143,8 +152,8 @@ func taskToRecord(t *Task) taskRecord {
 	return taskRecord{
 		ID: t.ID, Title: t.Title, Description: t.Description,
 		Priority: string(t.Priority), Status: string(t.Status),
-		AssignedTo: t.AssignedTo, ContactID: t.ContactID, DealID: t.DealID,
-		DueDate: t.DueDate,
+		AssignedTo: t.AssignedTo, TenantID: t.TenantID,
+		ContactID: t.ContactID, DealID: t.DealID, DueDate: t.DueDate,
 	}
 }
 

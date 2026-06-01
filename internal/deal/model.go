@@ -48,6 +48,7 @@ type Deal struct {
 	LeadID    *uuid.UUID `json:"lead_id,omitempty"` // pointer — pode ser nil (deal sem lead)
 	ContactID uuid.UUID  `json:"contact_id"`
 	OwnerID   uuid.UUID  `json:"owner_id"`
+	TenantID  uuid.UUID  `json:"tenant_id"`
 	ClosedAt  *time.Time `json:"closed_at,omitempty"` // pointer — nil até fechar
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
@@ -56,7 +57,7 @@ type Deal struct {
 // Repository define o contrato de acesso a dados para Deal.
 type Repository interface {
 	FindByID(id uuid.UUID) (*Deal, error)
-	FindAll(ownerID uuid.UUID, filters Filters) ([]*Deal, int64, error)
+	FindAll(tenantID, ownerID uuid.UUID, isManager bool, filters Filters) ([]*Deal, int64, error)
 	FindByContact(contactID uuid.UUID) ([]*Deal, error)
 	Save(deal *Deal) (*Deal, error)
 	Update(deal *Deal) (*Deal, error)

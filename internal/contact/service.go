@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/titi-byte-dev/gorm-crm/internal/shared/ctxutil"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 )
@@ -32,20 +33,21 @@ type UpdateContactDTO struct {
 	Notes   *string `json:"notes"   validate:"omitempty,max=1000"`
 }
 
-func (s *Service) Create(ownerID uuid.UUID, dto CreateContactDTO) (*Contact, error) {
+func (s *Service) Create(rctx ctxutil.RequestCtx, dto CreateContactDTO) (*Contact, error) {
 	// Regra de negócio: email único por owner (não global)
 	existing, err := s.repo.FindByEmail(dto.Email)
-	if err == nil && existing != nil && existing.OwnerID == ownerID {
+	if err == nil && existing != nil && existing.OwnerID == rctx.UserID {
 		return nil, fmt.Errorf("email already exists: %w", sharederrors.ErrConflict)
 	}
 
 	contact := &Contact{
-		Name:    dto.Name,
-		Email:   dto.Email,
-		Phone:   dto.Phone,
-		Company: dto.Company,
-		Notes:   dto.Notes,
-		OwnerID: ownerID,
+		Name:     dto.Name,
+		Email:    dto.Email,
+		Phone:    dto.Phone,
+		Company:  dto.Company,
+		Notes:    dto.Notes,
+		OwnerID:  rctx.UserID,
+		TenantID: rctx.TenantID,
 	}
 
 	saved, err := s.repo.Save(contact)
@@ -56,38 +58,38 @@ func (s *Service) Create(ownerID uuid.UUID, dto CreateContactDTO) (*Contact, err
 	s.bus.Publish(events.Event{
 		Type:    events.ContactCreated,
 		Payload: saved,
-		UserID:  ownerID.String(),
+		UserID:  rctx.UserID.String(),
 	})
 
 	return saved, nil
 }
 
-func (s *Service) GetByID(id, ownerID uuid.UUID) (*Contact, error) {
+func (s *Service) GetByID(id uuid.UUID, rctx ctxutil.RequestCtx) (*Contact, error) {
 	contact, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("get contact: %w", err)
 	}
-	if contact.OwnerID != ownerID {
-		return nil, fmt.Errorf("contact %s: %w", id, sharederrors.ErrNotFound)
+	if err := s.checkAccess(contact, rctx); err != nil {
+		return nil, err
 	}
 	return contact, nil
 }
 
-func (s *Service) List(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, error) {
-	contacts, total, err := s.repo.FindAll(ownerID, filters)
+func (s *Service) List(rctx ctxutil.RequestCtx, filters Filters) ([]*Contact, int64, error) {
+	contacts, total, err := s.repo.FindAll(rctx.TenantID, rctx.UserID, rctx.IsManager(), filters)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list contacts: %w", err)
 	}
 	return contacts, total, nil
 }
 
-func (s *Service) Update(id, ownerID uuid.UUID, dto UpdateContactDTO) (*Contact, error) {
+func (s *Service) Update(id uuid.UUID, rctx ctxutil.RequestCtx, dto UpdateContactDTO) (*Contact, error) {
 	contact, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("update contact: %w", err)
 	}
-	if contact.OwnerID != ownerID {
-		return nil, fmt.Errorf("contact %s: %w", id, sharederrors.ErrNotFound)
+	if err := s.checkAccess(contact, rctx); err != nil {
+		return nil, err
 	}
 
 	applyUpdates(contact, dto)
@@ -100,14 +102,46 @@ func (s *Service) Update(id, ownerID uuid.UUID, dto UpdateContactDTO) (*Contact,
 	s.bus.Publish(events.Event{
 		Type:    events.ContactUpdated,
 		Payload: updated,
-		UserID:  contact.OwnerID.String(),
+		UserID:  rctx.UserID.String(),
 	})
 
 	return updated, nil
 }
 
-// applyUpdates aplica os campos opcionais do DTO ao contacto.
-// Ponteiro nil significa "não alterar" — só actualiza campos enviados.
+func (s *Service) Delete(id uuid.UUID, rctx ctxutil.RequestCtx) error {
+	contact, err := s.repo.FindByID(id)
+	if err != nil {
+		return fmt.Errorf("delete contact: %w", err)
+	}
+	if err := s.checkAccess(contact, rctx); err != nil {
+		return err
+	}
+	if err := s.repo.Delete(id); err != nil {
+		return fmt.Errorf("delete contact: %w", err)
+	}
+
+	s.bus.Publish(events.Event{
+		Type:    events.ContactDeleted,
+		Payload: map[string]string{"id": id.String()},
+		UserID:  rctx.UserID.String(),
+	})
+
+	return nil
+}
+
+// checkAccess verifica que o utilizador tem permissão para aceder ao contacto.
+// Manager/admin: basta o tenant_id coincidir.
+// Seller: exige também que seja o owner.
+func (s *Service) checkAccess(c *Contact, rctx ctxutil.RequestCtx) error {
+	if c.TenantID != rctx.TenantID {
+		return fmt.Errorf("contact %s: %w", c.ID, sharederrors.ErrNotFound)
+	}
+	if !rctx.IsManager() && c.OwnerID != rctx.UserID {
+		return fmt.Errorf("contact %s: %w", c.ID, sharederrors.ErrNotFound)
+	}
+	return nil
+}
+
 func applyUpdates(c *Contact, dto UpdateContactDTO) {
 	if dto.Name != nil {
 		c.Name = *dto.Name
@@ -121,25 +155,4 @@ func applyUpdates(c *Contact, dto UpdateContactDTO) {
 	if dto.Notes != nil {
 		c.Notes = *dto.Notes
 	}
-}
-
-func (s *Service) Delete(id, ownerID uuid.UUID) error {
-	contact, err := s.repo.FindByID(id)
-	if err != nil {
-		return fmt.Errorf("delete contact: %w", err)
-	}
-	if contact.OwnerID != ownerID {
-		return fmt.Errorf("contact %s: %w", id, sharederrors.ErrNotFound)
-	}
-	if err := s.repo.Delete(id); err != nil {
-		return fmt.Errorf("delete contact: %w", err)
-	}
-
-	s.bus.Publish(events.Event{
-		Type:    events.ContactDeleted,
-		Payload: map[string]string{"id": id.String()},
-		UserID:  ownerID.String(),
-	})
-
-	return nil
 }

@@ -2,18 +2,18 @@ package unit_test
 
 import (
 	"fmt"
+	"log/slog"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
+	"github.com/titi-byte-dev/gorm-crm/internal/shared/ctxutil"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
+	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 	"github.com/titi-byte-dev/gorm-crm/internal/task"
-	"log/slog"
-	"os"
+	"github.com/titi-byte-dev/gorm-crm/internal/user"
 )
 
-// mockTaskRepository implementa task.Repository sem DB.
-// O compilador verifica que implementa a interface — se falhar, erro de build.
 var _ task.Repository = (*mockTaskRepository)(nil)
 
 type mockTaskRepository struct {
@@ -50,7 +50,7 @@ func (m *mockTaskRepository) Delete(id uuid.UUID) error {
 	return nil
 }
 
-func (m *mockTaskRepository) FindAll(_ uuid.UUID, _ task.Filters) ([]*task.Task, int64, error) {
+func (m *mockTaskRepository) FindAll(_ uuid.UUID, _ uuid.UUID, _ bool, _ task.Filters) ([]*task.Task, int64, error) {
 	return nil, 0, nil
 }
 
@@ -58,14 +58,36 @@ func (m *mockTaskRepository) FindByContact(_ uuid.UUID) ([]*task.Task, error) { 
 func (m *mockTaskRepository) FindByDeal(_ uuid.UUID) ([]*task.Task, error)    { return nil, nil }
 func (m *mockTaskRepository) FindOverdue() ([]*task.Task, error)               { return nil, nil }
 
+func isValidationError(err error) bool {
+	return err != nil && fmt.Sprintf("%s", err) != "" &&
+		containsErr(err, sharederrors.ErrValidation)
+}
+
+func containsErr(err, target error) bool {
+	for err != nil {
+		if err == target {
+			return true
+		}
+		type unwrapper interface{ Unwrap() error }
+		if u, ok := err.(unwrapper); ok {
+			err = u.Unwrap()
+		} else {
+			return false
+		}
+	}
+	return false
+}
+
 // ---
 
-// TestTaskService_UpdateStatus_BlocksReopeningFinalTask prova que
-// a regra de negócio "tarefas finais não podem ser reabertas" está
-// no Service — sem HTTP server, sem PostgreSQL.
-//
-// Este teste corre em <1ms. Se estivesse misturado no handler,
-// precisaríamos de um servidor HTTP e uma ligação ao DB para o correr.
+func makeRctx(userID uuid.UUID) ctxutil.RequestCtx {
+	return ctxutil.RequestCtx{
+		UserID:   userID,
+		TenantID: uuid.New(),
+		Role:     user.RoleSeller,
+	}
+}
+
 func TestTaskService_UpdateStatus_BlocksReopeningFinalTask(t *testing.T) {
 	t.Parallel()
 
@@ -73,9 +95,10 @@ func TestTaskService_UpdateStatus_BlocksReopeningFinalTask(t *testing.T) {
 	bus := events.New(10, log)
 	svc := task.NewService(newMockRepo(), bus)
 
-	// Criar uma task
 	assignedTo := uuid.New()
-	created, err := svc.Create(task.CreateTaskDTO{
+	rctx := makeRctx(assignedTo)
+
+	created, err := svc.Create(rctx, task.CreateTaskDTO{
 		Title:      "Ligar ao cliente",
 		Priority:   task.PriorityHigh,
 		AssignedTo: assignedTo,
@@ -84,14 +107,12 @@ func TestTaskService_UpdateStatus_BlocksReopeningFinalTask(t *testing.T) {
 		t.Fatalf("create task: %v", err)
 	}
 
-	// Marcar como done
-	_, err = svc.UpdateStatus(created.ID, assignedTo, task.StatusDone)
+	_, err = svc.UpdateStatus(created.ID, rctx, task.StatusDone)
 	if err != nil {
 		t.Fatalf("mark done: %v", err)
 	}
 
-	// Tentar reabrir → deve falhar
-	_, err = svc.UpdateStatus(created.ID, assignedTo, task.StatusTodo)
+	_, err = svc.UpdateStatus(created.ID, rctx, task.StatusTodo)
 	if err == nil {
 		t.Fatal("expected error reopening a done task, got nil")
 	}
@@ -108,7 +129,9 @@ func TestTaskService_UpdateStatus_AllowsNormalTransitions(t *testing.T) {
 	svc := task.NewService(newMockRepo(), bus)
 
 	assignedTo := uuid.New()
-	created, _ := svc.Create(task.CreateTaskDTO{
+	rctx := makeRctx(assignedTo)
+
+	created, _ := svc.Create(rctx, task.CreateTaskDTO{
 		Title:      "Enviar proposta",
 		Priority:   task.PriorityMedium,
 		AssignedTo: assignedTo,
@@ -120,7 +143,7 @@ func TestTaskService_UpdateStatus_AllowsNormalTransitions(t *testing.T) {
 	}
 
 	for _, status := range transitions {
-		updated, err := svc.UpdateStatus(created.ID, assignedTo, status)
+		updated, err := svc.UpdateStatus(created.ID, rctx, status)
 		if err != nil {
 			t.Errorf("transition to %s failed: %v", status, err)
 		}
@@ -128,8 +151,4 @@ func TestTaskService_UpdateStatus_AllowsNormalTransitions(t *testing.T) {
 			t.Errorf("expected status %s, got %s", status, updated.Status)
 		}
 	}
-}
-
-func isValidationError(err error) bool {
-	return err != nil && fmt.Sprintf("%v", err) != "" // simplificado
 }

@@ -21,7 +21,7 @@ func RegisterRoutes(router fiber.Router, svc *Service) {
 }
 
 func (h *Handler) Create(c *fiber.Ctx) error {
-	ownerID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -32,7 +32,7 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 	if result := validate.Check(dto); result != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(result)
 	}
-	lead, err := h.svc.Create(ownerID, dto)
+	lead, err := h.svc.Create(rctx, dto)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 }
 
 func (h *Handler) List(c *fiber.Ctx) error {
-	ownerID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (h *Handler) List(c *fiber.Ctx) error {
 	if s := c.Query("status"); s != "" {
 		filters.Status = Status(s)
 	}
-	leads, total, err := h.svc.List(ownerID, filters)
+	leads, total, err := h.svc.List(rctx, filters)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func (h *Handler) List(c *fiber.Ctx) error {
 }
 
 func (h *Handler) GetByID(c *fiber.Ctx) error {
-	ownerID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (h *Handler) GetByID(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid lead id")
 	}
-	lead, err := h.svc.GetByID(id, ownerID)
+	lead, err := h.svc.GetByID(id, rctx)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (h *Handler) GetByID(c *fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateStatus(c *fiber.Ctx) error {
-	ownerID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (h *Handler) UpdateStatus(c *fiber.Ctx) error {
 	if result := validate.Check(body); result != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(result)
 	}
-	lead, err := h.svc.UpdateStatus(id, ownerID, body.Status)
+	lead, err := h.svc.UpdateStatus(id, rctx, body.Status)
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (h *Handler) UpdateStatus(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Delete(c *fiber.Ctx) error {
-	ownerID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (h *Handler) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid lead id")
 	}
-	if err := h.svc.Delete(id, ownerID); err != nil {
+	if err := h.svc.Delete(id, rctx); err != nil {
 		return err
 	}
 	return response.NoContent(c)

@@ -39,6 +39,7 @@ type contactRecord struct {
 	Company   string
 	Notes     string
 	OwnerID   uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_contacts_email_owner"`
+	TenantID  uuid.UUID `gorm:"type:uuid;not null;index"`
 	CreatedAt int64     `gorm:"autoCreateTime:milli"`
 	UpdatedAt int64     `gorm:"autoUpdateTime:milli"`
 }
@@ -79,10 +80,13 @@ func (r *postgresRepository) FindByEmail(email string) (*Contact, error) {
 	return recordToContact(rec), nil
 }
 
-func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, error) {
+func (r *postgresRepository) FindAll(tenantID, ownerID uuid.UUID, isManager bool, filters Filters) ([]*Contact, int64, error) {
 	filters.SetDefaults()
 
-	query := r.db.Model(&contactRecord{}).Where("owner_id = ?", ownerID)
+	query := r.db.Model(&contactRecord{}).Where("tenant_id = ?", tenantID)
+	if !isManager {
+		query = query.Where("owner_id = ?", ownerID)
+	}
 
 	if filters.Search != "" {
 		like := "%" + filters.Search + "%"
@@ -157,6 +161,7 @@ func recordToContact(r contactRecord) *Contact {
 		Company:   r.Company,
 		Notes:     r.Notes,
 		OwnerID:   r.OwnerID,
+		TenantID:  r.TenantID,
 		CreatedAt: time.UnixMilli(r.CreatedAt),
 		UpdatedAt: time.UnixMilli(r.UpdatedAt),
 	}
@@ -164,12 +169,13 @@ func recordToContact(r contactRecord) *Contact {
 
 func contactToRecord(c *Contact) contactRecord {
 	return contactRecord{
-		ID:      c.ID,
-		Name:    c.Name,
-		Email:   c.Email,
-		Phone:   c.Phone,
-		Company: c.Company,
-		Notes:   c.Notes,
-		OwnerID: c.OwnerID,
+		ID:       c.ID,
+		Name:     c.Name,
+		Email:    c.Email,
+		Phone:    c.Phone,
+		Company:  c.Company,
+		Notes:    c.Notes,
+		OwnerID:  c.OwnerID,
+		TenantID: c.TenantID,
 	}
 }

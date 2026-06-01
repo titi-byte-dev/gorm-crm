@@ -26,13 +26,14 @@ func (r Role) IsValid() bool {
 // User representa um utilizador do GoRM CRM.
 // Em Go, structs são a unidade central de dados — não há classes.
 type User struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"` // "-" exclui do JSON — nunca exposto na API
-	Role         Role      `json:"role"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID             uuid.UUID `json:"id"`
+	Name           string    `json:"name"`
+	Email          string    `json:"email"`
+	PasswordHash   string    `json:"-"` // "-" exclui do JSON — nunca exposto na API
+	Role           Role      `json:"role"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // Repository define o contrato de acesso a dados para User.

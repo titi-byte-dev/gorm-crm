@@ -4,12 +4,11 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/titi-byte-dev/gorm-crm/internal/shared/ctxutil"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/events"
 )
 
-// Service contém APENAS lógica de negócio para Tasks.
-// Não importa fiber, não faz queries SQL — só regras do domínio.
 type Service struct {
 	repo Repository
 	bus  *events.Bus
@@ -36,13 +35,14 @@ type UpdateTaskDTO struct {
 	Status      *Status   `json:"status"      validate:"omitempty,oneof=todo in_progress done cancelled"`
 }
 
-func (s *Service) Create(dto CreateTaskDTO) (*Task, error) {
+func (s *Service) Create(rctx ctxutil.RequestCtx, dto CreateTaskDTO) (*Task, error) {
 	task := &Task{
 		Title:       dto.Title,
 		Description: dto.Description,
 		Priority:    dto.Priority,
 		Status:      StatusTodo,
 		AssignedTo:  dto.AssignedTo,
+		TenantID:    rctx.TenantID,
 		ContactID:   dto.ContactID,
 		DealID:      dto.DealID,
 	}
@@ -53,30 +53,28 @@ func (s *Service) Create(dto CreateTaskDTO) (*Task, error) {
 	return saved, nil
 }
 
-func (s *Service) GetByID(id, requesterID uuid.UUID) (*Task, error) {
+func (s *Service) GetByID(id uuid.UUID, rctx ctxutil.RequestCtx) (*Task, error) {
 	task, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, err
 	}
-	if task.AssignedTo != requesterID {
-		return nil, fmt.Errorf("task %s: %w", id, sharederrors.ErrNotFound)
+	if err := s.checkAccess(task, rctx); err != nil {
+		return nil, err
 	}
 	return task, nil
 }
 
-func (s *Service) List(assignedTo uuid.UUID, filters Filters) ([]*Task, int64, error) {
-	return s.repo.FindAll(assignedTo, filters)
+func (s *Service) List(rctx ctxutil.RequestCtx, filters Filters) ([]*Task, int64, error) {
+	return s.repo.FindAll(rctx.TenantID, rctx.UserID, rctx.IsManager(), filters)
 }
 
-// UpdateStatus aplica a regra de negócio: tarefas finais não podem ser reabertas.
-// Esta regra vive no Service — o Handler não sabe nada sobre estados finais.
-func (s *Service) UpdateStatus(id, requesterID uuid.UUID, newStatus Status) (*Task, error) {
+func (s *Service) UpdateStatus(id uuid.UUID, rctx ctxutil.RequestCtx, newStatus Status) (*Task, error) {
 	task, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("update task status: %w", err)
 	}
-	if task.AssignedTo != requesterID {
-		return nil, fmt.Errorf("task %s: %w", id, sharederrors.ErrNotFound)
+	if err := s.checkAccess(task, rctx); err != nil {
+		return nil, err
 	}
 	if task.Status.IsFinal() {
 		return nil, fmt.Errorf("task %s is %s and cannot be updated: %w",
@@ -91,19 +89,19 @@ func (s *Service) UpdateStatus(id, requesterID uuid.UUID, newStatus Status) (*Ta
 		s.bus.Publish(events.Event{
 			Type:    events.TaskCompleted,
 			Payload: map[string]string{"id": id.String()},
-			UserID:  requesterID.String(),
+			UserID:  rctx.UserID.String(),
 		})
 	}
 	return updated, nil
 }
 
-func (s *Service) Update(id, requesterID uuid.UUID, dto UpdateTaskDTO) (*Task, error) {
+func (s *Service) Update(id uuid.UUID, rctx ctxutil.RequestCtx, dto UpdateTaskDTO) (*Task, error) {
 	task, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("update task: %w", err)
 	}
-	if task.AssignedTo != requesterID {
-		return nil, fmt.Errorf("task %s: %w", id, sharederrors.ErrNotFound)
+	if err := s.checkAccess(task, rctx); err != nil {
+		return nil, err
 	}
 	if task.Status.IsFinal() {
 		return nil, fmt.Errorf("task is %s, cannot update: %w",
@@ -113,8 +111,32 @@ func (s *Service) Update(id, requesterID uuid.UUID, dto UpdateTaskDTO) (*Task, e
 	return s.repo.Update(task)
 }
 
-// applyUpdates aplica os campos opcionais do DTO à task.
-// Ponteiro nil significa "não alterar" — só actualiza campos enviados.
+func (s *Service) Delete(id uuid.UUID, rctx ctxutil.RequestCtx) error {
+	task, err := s.repo.FindByID(id)
+	if err != nil {
+		return fmt.Errorf("delete task: %w", err)
+	}
+	if err := s.checkAccess(task, rctx); err != nil {
+		return err
+	}
+	return s.repo.Delete(id)
+}
+
+func (s *Service) GetOverdue() ([]*Task, error) {
+	return s.repo.FindOverdue()
+}
+
+// checkAccess: manager vê toda a org, seller só as suas tarefas atribuídas.
+func (s *Service) checkAccess(t *Task, rctx ctxutil.RequestCtx) error {
+	if t.TenantID != rctx.TenantID {
+		return fmt.Errorf("task %s: %w", t.ID, sharederrors.ErrNotFound)
+	}
+	if !rctx.IsManager() && t.AssignedTo != rctx.UserID {
+		return fmt.Errorf("task %s: %w", t.ID, sharederrors.ErrNotFound)
+	}
+	return nil
+}
+
 func applyUpdates(t *Task, dto UpdateTaskDTO) {
 	if dto.Title != nil {
 		t.Title = *dto.Title
@@ -128,19 +150,4 @@ func applyUpdates(t *Task, dto UpdateTaskDTO) {
 	if dto.Status != nil {
 		t.Status = *dto.Status
 	}
-}
-
-func (s *Service) Delete(id, requesterID uuid.UUID) error {
-	task, err := s.repo.FindByID(id)
-	if err != nil {
-		return fmt.Errorf("delete task: %w", err)
-	}
-	if task.AssignedTo != requesterID {
-		return fmt.Errorf("task %s: %w", id, sharederrors.ErrNotFound)
-	}
-	return s.repo.Delete(id)
-}
-
-func (s *Service) GetOverdue() ([]*Task, error) {
-	return s.repo.FindOverdue()
 }

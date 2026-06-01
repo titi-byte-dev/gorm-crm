@@ -11,13 +11,14 @@ import (
 )
 
 type userRecord struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey"`
-	Name         string    `gorm:"not null"`
-	Email        string    `gorm:"uniqueIndex;not null"`
-	PasswordHash string    `gorm:"not null"`
-	Role         string    `gorm:"not null;default:'seller'"`
-	CreatedAt    time.Time `gorm:"autoCreateTime"`
-	UpdatedAt    time.Time `gorm:"autoUpdateTime"`
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey"`
+	Name           string    `gorm:"not null"`
+	Email          string    `gorm:"uniqueIndex;not null"`
+	PasswordHash   string    `gorm:"not null"`
+	Role           string    `gorm:"not null;default:'seller'"`
+	OrganizationID uuid.UUID `gorm:"type:uuid;not null;index"`
+	CreatedAt      time.Time `gorm:"autoCreateTime"`
+	UpdatedAt      time.Time `gorm:"autoUpdateTime"`
 }
 
 func (userRecord) TableName() string { return "users" }
@@ -75,6 +76,7 @@ func recordToUser(r userRecord) *User {
 	return &User{
 		ID: r.ID, Name: r.Name, Email: r.Email,
 		PasswordHash: r.PasswordHash, Role: Role(r.Role),
+		OrganizationID: r.OrganizationID,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
@@ -83,5 +85,6 @@ func userToRecord(u *User) userRecord {
 	return userRecord{
 		ID: u.ID, Name: u.Name, Email: u.Email,
 		PasswordHash: u.PasswordHash, Role: string(u.Role),
+		OrganizationID: u.OrganizationID,
 	}
 }

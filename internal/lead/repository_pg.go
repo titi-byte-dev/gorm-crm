@@ -36,6 +36,7 @@ type leadRecord struct {
 	Status    string    `gorm:"not null;default:'new'"`
 	ContactID uuid.UUID `gorm:"type:uuid;not null;index"`
 	OwnerID   uuid.UUID `gorm:"type:uuid;not null;index"`
+	TenantID  uuid.UUID `gorm:"type:uuid;not null;index"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime"`
 }
@@ -61,9 +62,12 @@ func (r *postgresRepository) FindByID(id uuid.UUID) (*Lead, error) {
 	return recordToLead(rec), nil
 }
 
-func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) ([]*Lead, int64, error) {
+func (r *postgresRepository) FindAll(tenantID, ownerID uuid.UUID, isManager bool, filters Filters) ([]*Lead, int64, error) {
 	filters.SetDefaults()
-	query := r.db.Model(&leadRecord{}).Where("owner_id = ?", ownerID)
+	query := r.db.Model(&leadRecord{}).Where("tenant_id = ?", tenantID)
+	if !isManager {
+		query = query.Where("owner_id = ?", ownerID)
+	}
 	if filters.Status != "" {
 		query = query.Where("status = ?", filters.Status)
 	}
@@ -133,7 +137,7 @@ func recordToLead(r leadRecord) *Lead {
 	return &Lead{
 		ID: r.ID, Title: r.Title, Value: r.Value,
 		Status: Status(r.Status), ContactID: r.ContactID, OwnerID: r.OwnerID,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
@@ -141,5 +145,6 @@ func leadToRecord(l *Lead) leadRecord {
 	return leadRecord{
 		ID: l.ID, Title: l.Title, Value: l.Value,
 		Status: string(l.Status), ContactID: l.ContactID, OwnerID: l.OwnerID,
+		TenantID: l.TenantID,
 	}
 }

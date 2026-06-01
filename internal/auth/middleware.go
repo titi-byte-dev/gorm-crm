@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/ctxutil"
+	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"github.com/titi-byte-dev/gorm-crm/internal/user"
 )
 
@@ -47,9 +47,15 @@ func Protected() fiber.Handler {
 			return sharederrors.ErrUnauthorized
 		}
 
+		orgID, err := uuid.Parse(claims.OrgID)
+		if err != nil {
+			return sharederrors.ErrUnauthorized
+		}
+
 		// Injeta no contexto — acessível em qualquer handler downstream
 		c.Locals(ContextUserID, userID)
 		c.Locals(ContextRole, claims.Role)
+		c.Locals(ctxutil.KeyOrgID, orgID)
 
 		return c.Next()
 	}

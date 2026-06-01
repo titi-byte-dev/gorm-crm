@@ -16,6 +16,7 @@ import (
 // o payload é apenas Base64, não encriptado (qualquer um pode ler).
 type Claims struct {
 	UserID string    `json:"uid"`
+	OrgID  string    `json:"org_id"`
 	Role   user.Role `json:"role"`
 	jwt.RegisteredClaims
 }
@@ -45,15 +46,15 @@ func jwtSecret() []byte {
 // Se o access token for roubado, expira em 24h sem ação do utilizador.
 // O refresh token tem vida mais longa mas é usado raramente, reduzindo
 // a janela de exposição.
-func GenerateTokenPair(userID uuid.UUID, role user.Role) (*TokenPair, error) {
+func GenerateTokenPair(userID, orgID uuid.UUID, role user.Role) (*TokenPair, error) {
 	accessExp := time.Now().Add(24 * time.Hour)
-	access, err := generateToken(userID, role, accessExp)
+	access, err := generateToken(userID, orgID, role, accessExp)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
 
 	refreshExp := time.Now().Add(7 * 24 * time.Hour)
-	refresh, err := generateToken(userID, role, refreshExp)
+	refresh, err := generateToken(userID, orgID, role, refreshExp)
 	if err != nil {
 		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
@@ -65,9 +66,10 @@ func GenerateTokenPair(userID uuid.UUID, role user.Role) (*TokenPair, error) {
 	}, nil
 }
 
-func generateToken(userID uuid.UUID, role user.Role, exp time.Time) (string, error) {
+func generateToken(userID, orgID uuid.UUID, role user.Role, exp time.Time) (string, error) {
 	claims := Claims{
 		UserID: userID.String(),
+		OrgID:  orgID.String(),
 		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(exp),

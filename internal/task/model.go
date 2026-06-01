@@ -38,8 +38,9 @@ type Task struct {
 	Priority    Priority   `json:"priority"`
 	Status      Status     `json:"status"`
 	AssignedTo  uuid.UUID  `json:"assigned_to"`
-	ContactID   *uuid.UUID `json:"contact_id,omitempty"` // pointer — task pode não ter contacto
-	DealID      *uuid.UUID `json:"deal_id,omitempty"`    // pointer — task pode não ter deal
+	TenantID    uuid.UUID  `json:"tenant_id"`
+	ContactID   *uuid.UUID `json:"contact_id,omitempty"`
+	DealID      *uuid.UUID `json:"deal_id,omitempty"`
 	DueDate     *time.Time `json:"due_date,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
@@ -57,7 +58,7 @@ func (t Task) IsOverdue() bool {
 // Repository define o contrato de acesso a dados para Task.
 type Repository interface {
 	FindByID(id uuid.UUID) (*Task, error)
-	FindAll(assignedTo uuid.UUID, filters Filters) ([]*Task, int64, error)
+	FindAll(tenantID, assignedTo uuid.UUID, isManager bool, filters Filters) ([]*Task, int64, error)
 	FindByContact(contactID uuid.UUID) ([]*Task, error)
 	FindByDeal(dealID uuid.UUID) ([]*Task, error)
 	FindOverdue() ([]*Task, error)

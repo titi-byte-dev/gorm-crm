@@ -43,6 +43,7 @@ type Lead struct {
 	Status    Status    `json:"status"`
 	ContactID uuid.UUID `json:"contact_id"`
 	OwnerID   uuid.UUID `json:"owner_id"`
+	TenantID  uuid.UUID `json:"tenant_id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -50,7 +51,7 @@ type Lead struct {
 // Repository define o contrato de acesso a dados para Lead.
 type Repository interface {
 	FindByID(id uuid.UUID) (*Lead, error)
-	FindAll(ownerID uuid.UUID, filters Filters) ([]*Lead, int64, error)
+	FindAll(tenantID, ownerID uuid.UUID, isManager bool, filters Filters) ([]*Lead, int64, error)
 	FindByContact(contactID uuid.UUID) ([]*Lead, error)
 	Save(lead *Lead) (*Lead, error)
 	Update(lead *Lead) (*Lead, error)

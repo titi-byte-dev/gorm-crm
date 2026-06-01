@@ -8,7 +8,6 @@ import (
 	"github.com/titi-byte-dev/gorm-crm/internal/shared/validate"
 )
 
-// Handler — só HTTP. Zero lógica de negócio, zero SQL.
 type Handler struct{ svc *Service }
 
 func RegisterRoutes(router fiber.Router, svc *Service) {
@@ -16,7 +15,7 @@ func RegisterRoutes(router fiber.Router, svc *Service) {
 	g := router.Group("/tasks")
 	g.Post("/", h.Create)
 	g.Get("/", h.List)
-	g.Get("/overdue", h.Overdue) // antes de /:id para não ser capturado como param
+	g.Get("/overdue", h.Overdue)
 	g.Get("/:id", h.GetByID)
 	g.Put("/:id", h.Update)
 	g.Patch("/:id/status", h.UpdateStatus)
@@ -24,6 +23,10 @@ func RegisterRoutes(router fiber.Router, svc *Service) {
 }
 
 func (h *Handler) Create(c *fiber.Ctx) error {
+	rctx, err := ctxutil.FromFiber(c)
+	if err != nil {
+		return err
+	}
 	var dto CreateTaskDTO
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
@@ -31,7 +34,7 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 	if result := validate.Check(dto); result != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(result)
 	}
-	task, err := h.svc.Create(dto)
+	task, err := h.svc.Create(rctx, dto)
 	if err != nil {
 		return err
 	}
@@ -39,7 +42,7 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 }
 
 func (h *Handler) List(c *fiber.Ctx) error {
-	assignedTo, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -53,7 +56,7 @@ func (h *Handler) List(c *fiber.Ctx) error {
 	if p := c.Query("priority"); p != "" {
 		filters.Priority = Priority(p)
 	}
-	tasks, total, err := h.svc.List(assignedTo, filters)
+	tasks, total, err := h.svc.List(rctx, filters)
 	if err != nil {
 		return err
 	}
@@ -61,7 +64,7 @@ func (h *Handler) List(c *fiber.Ctx) error {
 }
 
 func (h *Handler) GetByID(c *fiber.Ctx) error {
-	requesterID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -69,7 +72,7 @@ func (h *Handler) GetByID(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid task id")
 	}
-	task, err := h.svc.GetByID(id, requesterID)
+	task, err := h.svc.GetByID(id, rctx)
 	if err != nil {
 		return err
 	}
@@ -77,7 +80,7 @@ func (h *Handler) GetByID(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Update(c *fiber.Ctx) error {
-	requesterID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -92,7 +95,7 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 	if result := validate.Check(dto); result != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(result)
 	}
-	task, err := h.svc.Update(id, requesterID, dto)
+	task, err := h.svc.Update(id, rctx, dto)
 	if err != nil {
 		return err
 	}
@@ -100,7 +103,7 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateStatus(c *fiber.Ctx) error {
-	requesterID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -117,7 +120,7 @@ func (h *Handler) UpdateStatus(c *fiber.Ctx) error {
 	if result := validate.Check(body); result != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(result)
 	}
-	task, err := h.svc.UpdateStatus(id, requesterID, body.Status)
+	task, err := h.svc.UpdateStatus(id, rctx, body.Status)
 	if err != nil {
 		return err
 	}
@@ -133,7 +136,7 @@ func (h *Handler) Overdue(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Delete(c *fiber.Ctx) error {
-	requesterID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -141,7 +144,7 @@ func (h *Handler) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid task id")
 	}
-	if err := h.svc.Delete(id, requesterID); err != nil {
+	if err := h.svc.Delete(id, rctx); err != nil {
 		return err
 	}
 	return response.NoContent(c)

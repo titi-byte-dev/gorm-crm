@@ -23,7 +23,7 @@ func RegisterRoutes(router fiber.Router, svc *Service) {
 }
 
 func (h *Handler) Create(c *fiber.Ctx) error {
-	ownerID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 	if result := validate.Check(dto); result != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(result)
 	}
-	contact, err := h.svc.Create(ownerID, dto)
+	contact, err := h.svc.Create(rctx, dto)
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 }
 
 func (h *Handler) List(c *fiber.Ctx) error {
-	ownerID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (h *Handler) List(c *fiber.Ctx) error {
 		SortBy:  c.Query("sort_by", "created_at"),
 		SortDir: c.Query("sort_dir", "desc"),
 	}
-	contacts, total, err := h.svc.List(ownerID, filters)
+	contacts, total, err := h.svc.List(rctx, filters)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (h *Handler) List(c *fiber.Ctx) error {
 }
 
 func (h *Handler) GetByID(c *fiber.Ctx) error {
-	ownerID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (h *Handler) GetByID(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid contact id")
 	}
-	contact, err := h.svc.GetByID(id, ownerID)
+	contact, err := h.svc.GetByID(id, rctx)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (h *Handler) GetByID(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Update(c *fiber.Ctx) error {
-	ownerID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}
-	contact, err := h.svc.Update(id, ownerID, dto)
+	contact, err := h.svc.Update(id, rctx, dto)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Delete(c *fiber.Ctx) error {
-	ownerID, err := ctxutil.OwnerID(c)
+	rctx, err := ctxutil.FromFiber(c)
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func (h *Handler) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid contact id")
 	}
-	if err := h.svc.Delete(id, ownerID); err != nil {
+	if err := h.svc.Delete(id, rctx); err != nil {
 		return err
 	}
 	return response.NoContent(c)

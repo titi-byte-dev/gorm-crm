@@ -38,6 +38,7 @@ type dealRecord struct {
 	LeadID    *uuid.UUID `gorm:"type:uuid;index"`
 	ContactID uuid.UUID  `gorm:"type:uuid;not null;index"`
 	OwnerID   uuid.UUID  `gorm:"type:uuid;not null;index"`
+	TenantID  uuid.UUID  `gorm:"type:uuid;not null;index"`
 	ClosedAt  *time.Time
 	CreatedAt time.Time  `gorm:"autoCreateTime"`
 	UpdatedAt time.Time  `gorm:"autoUpdateTime"`
@@ -64,9 +65,12 @@ func (r *postgresRepository) FindByID(id uuid.UUID) (*Deal, error) {
 	return recordToDeal(rec), nil
 }
 
-func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) ([]*Deal, int64, error) {
+func (r *postgresRepository) FindAll(tenantID, ownerID uuid.UUID, isManager bool, filters Filters) ([]*Deal, int64, error) {
 	filters.SetDefaults()
-	query := r.db.Model(&dealRecord{}).Where("owner_id = ?", ownerID)
+	query := r.db.Model(&dealRecord{}).Where("tenant_id = ?", tenantID)
+	if !isManager {
+		query = query.Where("owner_id = ?", ownerID)
+	}
 	if filters.Stage != "" {
 		query = query.Where("stage = ?", filters.Stage)
 	}
@@ -88,7 +92,9 @@ func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) ([]*Dea
 
 func (r *postgresRepository) FindByContact(contactID uuid.UUID) ([]*Deal, error) {
 	var recs []dealRecord
-	r.db.Where("contact_id = ?", contactID).Find(&recs)
+	if err := r.db.Where("contact_id = ?", contactID).Find(&recs).Error; err != nil {
+		return nil, fmt.Errorf("find deals by contact: %w", err)
+	}
 	deals := make([]*Deal, len(recs))
 	for i, rec := range recs {
 		deals[i] = recordToDeal(rec)
@@ -130,7 +136,7 @@ func (r *postgresRepository) Delete(id uuid.UUID) error {
 func recordToDeal(r dealRecord) *Deal {
 	return &Deal{
 		ID: r.ID, Title: r.Title, Value: r.Value, Stage: Stage(r.Stage),
-		LeadID: r.LeadID, ContactID: r.ContactID, OwnerID: r.OwnerID,
+		LeadID: r.LeadID, ContactID: r.ContactID, OwnerID: r.OwnerID, TenantID: r.TenantID,
 		ClosedAt: r.ClosedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
@@ -138,6 +144,7 @@ func recordToDeal(r dealRecord) *Deal {
 func dealToRecord(d *Deal) dealRecord {
 	return dealRecord{
 		ID: d.ID, Title: d.Title, Value: d.Value, Stage: string(d.Stage),
-		LeadID: d.LeadID, ContactID: d.ContactID, OwnerID: d.OwnerID, ClosedAt: d.ClosedAt,
+		LeadID: d.LeadID, ContactID: d.ContactID, OwnerID: d.OwnerID, TenantID: d.TenantID,
+		ClosedAt: d.ClosedAt,
 	}
 }

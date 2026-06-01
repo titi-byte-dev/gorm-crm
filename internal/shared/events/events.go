@@ -17,8 +17,9 @@ const (
 	LeadLost       EventType = "lead.lost"
 	DealWon        EventType = "deal.won"
 	DealLost       EventType = "deal.lost"
-	TaskCompleted  EventType = "task.completed"
-	TaskOverdue    EventType = "task.overdue"
+	TaskCompleted      EventType = "task.completed"
+	TaskOverdue        EventType = "task.overdue"
+	AgentRunCompleted  EventType = "agent.run.completed"
 )
 
 // Event é a mensagem que circula no bus.

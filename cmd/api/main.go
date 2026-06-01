@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/titi-byte-dev/gorm-crm/internal/activitylog"
+	"github.com/titi-byte-dev/gorm-crm/internal/agent"
 	"github.com/titi-byte-dev/gorm-crm/internal/auth"
 	"github.com/titi-byte-dev/gorm-crm/internal/contact"
 	"github.com/titi-byte-dev/gorm-crm/internal/deal"
@@ -139,10 +140,23 @@ func registerRoutes(app *fiber.App, db *gorm.DB, mongoDB *mongo.Database, bus *e
 
 	protected := v1.Use(auth.Protected())
 
-	contact.RegisterRoutes(protected, contact.NewService(contact.NewPostgresRepository(db), bus))
-	lead.RegisterRoutes(protected, lead.NewService(lead.NewPostgresRepository(db), bus))
-	deal.RegisterRoutes(protected, deal.NewService(deal.NewPostgresRepository(db), bus))
-	task.RegisterRoutes(protected, task.NewService(task.NewPostgresRepository(db), bus))
+	contactRepo := contact.NewPostgresRepository(db)
+	leadRepo := lead.NewPostgresRepository(db)
+	dealRepo := deal.NewPostgresRepository(db)
+	taskRepo := task.NewPostgresRepository(db)
+	taskSvc := task.NewService(taskRepo, bus)
+
+	contact.RegisterRoutes(protected, contact.NewService(contactRepo, bus))
+	lead.RegisterRoutes(protected, lead.NewService(leadRepo, bus))
+	deal.RegisterRoutes(protected, deal.NewService(dealRepo, bus))
+	task.RegisterRoutes(protected, taskSvc)
+
+	agentSvc := agent.NewService(
+		agent.NewPostgresRepository(db),
+		contactRepo, leadRepo, dealRepo, taskRepo,
+		taskSvc, bus,
+	)
+	agent.RegisterRoutes(protected, agentSvc)
 
 	if mongoDB != nil {
 		actSvc := activitylog.NewService(activitylog.NewMongoRepository(mongoDB), log)

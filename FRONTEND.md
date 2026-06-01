@@ -212,11 +212,118 @@ A sidebar e os filtros adaptam-se ao role extraído do JWT.
 - [ ] Internacionalização (PT/EN)
 - [ ] Testes E2E com Playwright
 
-### Fase 4 — v2.0 (futuro)
+### Fase 4 — v2.0 (Agent Mode)
+- [ ] `AgentButton` por entidade (contact, deal, lead)
+- [ ] `AgentPanel` com seletor de tipo + modo suggest/auto
+- [ ] `AgentActionCard` — aprovar/rejeitar cada ação sugerida
+- [ ] `AgentExecutionLog` — histórico de runs por entidade
+- [ ] SSE stream para feedback em tempo real durante execução
 - [ ] Client Portal (acesso limitado do cliente)
 - [ ] Mobile (React Native ou PWA)
 - [ ] Integrações externas (email, Slack, calendário)
-- [ ] AI Co-pilot (sugestões contextuais)
+
+---
+
+## 4. Agent Mode — Camada de Inteligência
+
+> "Um agente que age sobre os dados em vez de apenas os mostrar."
+
+O Agent Mode é a quarta camada do CRM OS. Não é uma funcionalidade separada — é um botão **Ativar Agente** disponível em cada entidade (contacto, deal, lead).
+
+### Arquitetura
+
+```
+Frontend                         Backend (Go)
+────────────────────────────     ─────────────────────────────
+AgentButton (entity page)   →   POST /api/v1/agents/run
+AgentPanel (Sheet/Drawer)   ←   AgentRun { actions, summary }
+AgentActionCard             →   POST /api/v1/agents/runs/:id/approve
+AgentExecutionLog           ←   GET  /api/v1/agents/runs?entity_type=&entity_id=
+```
+
+### Tipos de Agente
+
+| Tipo | Trigger | O que faz |
+|------|---------|-----------|
+| `follow_up` | Botão no ContactPage | Analisa contacto + tasks, propõe acompanhamento |
+| `deal_closer` | Botão no DealPage | Analisa deal estagnado, propõe próximos passos |
+| `task_router` | Botão no TaskBoard | Prioriza e redistribui tasks pendentes |
+| `summarize` | Botão em qualquer entidade | Resume histórico em linguagem natural |
+
+### Modos de Execução
+
+```
+suggest (padrão)          auto (manager+ apenas)
+──────────────────         ──────────────────────
+LLM decide ações          LLM decide ações
+↓                          ↓
+Devolve como sugestões    Executa imediatamente
+↓                          ↓
+Utilizador aprova/rejeita  Log no ActivityFeed
+```
+
+### Componentes Frontend
+
+```tsx
+// Botão que abre o painel — aparece no header de cada entidade
+<AgentButton entityType="contact" entityId={contact.id} />
+
+// Painel lateral (Sheet)
+<AgentPanel>
+  <AgentTypeSelector />        {/* follow_up | deal_closer | ... */}
+  <ModeToggle />               {/* suggest | auto (manager apenas) */}
+  <AgentThinking />            {/* skeleton durante chamada LLM */}
+  {run.actions.map(action =>
+    <AgentActionCard
+      action={action}
+      onApprove={approveAction}
+      onReject={rejectAction}
+    />
+  )}
+  <AgentSummary text={run.summary} />
+</AgentPanel>
+
+// Histórico de execuções
+<AgentExecutionLog entityType="contact" entityId={contact.id} />
+```
+
+### Estrutura de pastas
+
+```
+components/
+└── agents/
+    ├── AgentButton.tsx
+    ├── AgentPanel.tsx
+    ├── AgentTypeSelector.tsx
+    ├── AgentActionCard.tsx
+    ├── AgentExecutionLog.tsx
+    └── AgentThinking.tsx      # skeleton de loading
+
+lib/
+└── hooks/
+    ├── useAgentRun.ts         # POST /agents/run + polling/SSE
+    └── useAgentHistory.ts     # GET /agents/runs?entity_type=&entity_id=
+
+stores/
+└── agentStore.ts              # Zustand: activeRun, pendingActions
+```
+
+### Role-Based Agent UI
+
+| Role | ModeSuggest | ModeAuto | Ver histórico |
+|------|-------------|----------|---------------|
+| `seller` | ✅ | ❌ | Só os seus runs |
+| `manager` | ✅ | ✅ | Toda a org |
+| `admin` | ✅ | ✅ | Toda a org |
+
+### Fallback sem API Key
+
+Se `ANTHROPIC_API_KEY` não estiver configurada no backend, o agente corre em **modo regra** (heurísticas simples):
+- Contacto sem atualização há ≥7 dias → cria task follow-up urgente
+- Task em atraso → escala ao manager
+- Sem condição → devolve sumário vazio
+
+O frontend não precisa saber — o comportamento é transparente.
 
 ---
 
@@ -234,5 +341,8 @@ O backend GoRM expõe todos os endpoints necessários:
 | Tasks do utilizador | `GET /api/v1/tasks` |
 | Tasks em atraso | `GET /api/v1/tasks/overdue` |
 | Automation triggers | `events.Bus` (futuro: WebSocket ou SSE) |
+| Ativar agente | `POST /api/v1/agents/run` |
+| Aprovar ações | `POST /api/v1/agents/runs/:id/approve` |
+| Histórico de runs | `GET /api/v1/agents/runs?entity_type=&entity_id=` |
 
-O `events.Bus` do backend é a ponte natural para o Automation Lens — cada evento publicado (`deal.won`, `lead.converted`, `task.completed`) pode disparar um flow visual.
+O `events.Bus` do backend é a ponte natural para o Automation Lens — cada evento publicado (`deal.won`, `lead.converted`, `task.completed`, `agent.run.completed`) pode disparar um flow visual.

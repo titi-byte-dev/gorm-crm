@@ -45,10 +45,13 @@ func (s *Service) Create(ownerID uuid.UUID, dto CreateLeadDTO) (*Lead, error) {
 	return saved, nil
 }
 
-func (s *Service) GetByID(id uuid.UUID) (*Lead, error) {
+func (s *Service) GetByID(id, ownerID uuid.UUID) (*Lead, error) {
 	lead, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("get lead: %w", err)
+	}
+	if lead.OwnerID != ownerID {
+		return nil, fmt.Errorf("lead %s: %w", id, sharederrors.ErrNotFound)
 	}
 	return lead, nil
 }
@@ -57,10 +60,13 @@ func (s *Service) List(ownerID uuid.UUID, filters Filters) ([]*Lead, int64, erro
 	return s.repo.FindAll(ownerID, filters)
 }
 
-func (s *Service) UpdateStatus(id uuid.UUID, newStatus Status) (*Lead, error) {
+func (s *Service) UpdateStatus(id, ownerID uuid.UUID, newStatus Status) (*Lead, error) {
 	lead, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("update lead status: %w", err)
+	}
+	if lead.OwnerID != ownerID {
+		return nil, fmt.Errorf("lead %s: %w", id, sharederrors.ErrNotFound)
 	}
 
 	if !lead.Status.CanTransitionTo(newStatus) {
@@ -83,6 +89,13 @@ func (s *Service) UpdateStatus(id uuid.UUID, newStatus Status) (*Lead, error) {
 	return updated, nil
 }
 
-func (s *Service) Delete(id uuid.UUID) error {
+func (s *Service) Delete(id, ownerID uuid.UUID) error {
+	lead, err := s.repo.FindByID(id)
+	if err != nil {
+		return fmt.Errorf("delete lead: %w", err)
+	}
+	if lead.OwnerID != ownerID {
+		return fmt.Errorf("lead %s: %w", id, sharederrors.ErrNotFound)
+	}
 	return s.repo.Delete(id)
 }

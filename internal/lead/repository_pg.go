@@ -3,12 +3,31 @@ package lead
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"gorm.io/gorm"
 )
+
+var allowedLeadSortColumns = map[string]bool{
+	"created_at": true,
+	"updated_at": true,
+	"title":      true,
+	"value":      true,
+	"status":     true,
+}
+
+func safeLeadOrder(col, dir string) string {
+	if !allowedLeadSortColumns[col] {
+		col = "created_at"
+	}
+	if strings.ToUpper(dir) == "ASC" {
+		return col + " ASC"
+	}
+	return col + " DESC"
+}
 
 type leadRecord struct {
 	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
@@ -51,7 +70,7 @@ func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) ([]*Lea
 	var total int64
 	query.Count(&total)
 	var recs []leadRecord
-	err := query.Order(filters.SortBy + " " + filters.SortDir).
+	err := query.Order(safeLeadOrder(filters.SortBy, filters.SortDir)).
 		Limit(filters.Limit).Offset((filters.Page - 1) * filters.Limit).
 		Find(&recs).Error
 	if err != nil {

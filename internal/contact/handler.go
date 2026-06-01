@@ -62,11 +62,15 @@ func (h *Handler) List(c *fiber.Ctx) error {
 }
 
 func (h *Handler) GetByID(c *fiber.Ctx) error {
+	ownerID, err := ctxutil.OwnerID(c)
+	if err != nil {
+		return err
+	}
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid contact id")
 	}
-	contact, err := h.svc.GetByID(id)
+	contact, err := h.svc.GetByID(id, ownerID)
 	if err != nil {
 		return err
 	}
@@ -74,6 +78,10 @@ func (h *Handler) GetByID(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Update(c *fiber.Ctx) error {
+	ownerID, err := ctxutil.OwnerID(c)
+	if err != nil {
+		return err
+	}
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid contact id")
@@ -82,7 +90,7 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 	if err := c.BodyParser(&dto); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request body")
 	}
-	contact, err := h.svc.Update(id, dto)
+	contact, err := h.svc.Update(id, ownerID, dto)
 	if err != nil {
 		return err
 	}
@@ -90,11 +98,15 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Delete(c *fiber.Ctx) error {
+	ownerID, err := ctxutil.OwnerID(c)
+	if err != nil {
+		return err
+	}
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid contact id")
 	}
-	if err := h.svc.Delete(id); err != nil {
+	if err := h.svc.Delete(id, ownerID); err != nil {
 		return err
 	}
 	return response.NoContent(c)

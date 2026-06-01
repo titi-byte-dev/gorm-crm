@@ -53,8 +53,15 @@ func (s *Service) Create(dto CreateTaskDTO) (*Task, error) {
 	return saved, nil
 }
 
-func (s *Service) GetByID(id uuid.UUID) (*Task, error) {
-	return s.repo.FindByID(id)
+func (s *Service) GetByID(id, requesterID uuid.UUID) (*Task, error) {
+	task, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if task.AssignedTo != requesterID {
+		return nil, fmt.Errorf("task %s: %w", id, sharederrors.ErrNotFound)
+	}
+	return task, nil
 }
 
 func (s *Service) List(assignedTo uuid.UUID, filters Filters) ([]*Task, int64, error) {
@@ -63,10 +70,13 @@ func (s *Service) List(assignedTo uuid.UUID, filters Filters) ([]*Task, int64, e
 
 // UpdateStatus aplica a regra de negócio: tarefas finais não podem ser reabertas.
 // Esta regra vive no Service — o Handler não sabe nada sobre estados finais.
-func (s *Service) UpdateStatus(id uuid.UUID, newStatus Status) (*Task, error) {
+func (s *Service) UpdateStatus(id, requesterID uuid.UUID, newStatus Status) (*Task, error) {
 	task, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("update task status: %w", err)
+	}
+	if task.AssignedTo != requesterID {
+		return nil, fmt.Errorf("task %s: %w", id, sharederrors.ErrNotFound)
 	}
 	if task.Status.IsFinal() {
 		return nil, fmt.Errorf("task %s is %s and cannot be updated: %w",
@@ -79,17 +89,21 @@ func (s *Service) UpdateStatus(id uuid.UUID, newStatus Status) (*Task, error) {
 	}
 	if newStatus == StatusDone {
 		s.bus.Publish(events.Event{
-			Type:    events.TaskOverdue,
-			Payload: map[string]string{"id": id.String(), "status": "done"},
+			Type:    events.TaskCompleted,
+			Payload: map[string]string{"id": id.String()},
+			UserID:  requesterID.String(),
 		})
 	}
 	return updated, nil
 }
 
-func (s *Service) Update(id uuid.UUID, dto UpdateTaskDTO) (*Task, error) {
+func (s *Service) Update(id, requesterID uuid.UUID, dto UpdateTaskDTO) (*Task, error) {
 	task, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("update task: %w", err)
+	}
+	if task.AssignedTo != requesterID {
+		return nil, fmt.Errorf("task %s: %w", id, sharederrors.ErrNotFound)
 	}
 	if task.Status.IsFinal() {
 		return nil, fmt.Errorf("task is %s, cannot update: %w",
@@ -116,7 +130,14 @@ func applyUpdates(t *Task, dto UpdateTaskDTO) {
 	}
 }
 
-func (s *Service) Delete(id uuid.UUID) error {
+func (s *Service) Delete(id, requesterID uuid.UUID) error {
+	task, err := s.repo.FindByID(id)
+	if err != nil {
+		return fmt.Errorf("delete task: %w", err)
+	}
+	if task.AssignedTo != requesterID {
+		return fmt.Errorf("task %s: %w", id, sharederrors.ErrNotFound)
+	}
 	return s.repo.Delete(id)
 }
 

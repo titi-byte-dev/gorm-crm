@@ -17,6 +17,7 @@ const (
 	LeadLost       EventType = "lead.lost"
 	DealWon        EventType = "deal.won"
 	DealLost       EventType = "deal.lost"
+	TaskCompleted  EventType = "task.completed"
 	TaskOverdue    EventType = "task.overdue"
 )
 

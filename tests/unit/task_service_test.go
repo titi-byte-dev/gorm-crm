@@ -74,23 +74,24 @@ func TestTaskService_UpdateStatus_BlocksReopeningFinalTask(t *testing.T) {
 	svc := task.NewService(newMockRepo(), bus)
 
 	// Criar uma task
+	assignedTo := uuid.New()
 	created, err := svc.Create(task.CreateTaskDTO{
 		Title:      "Ligar ao cliente",
 		Priority:   task.PriorityHigh,
-		AssignedTo: uuid.New(),
+		AssignedTo: assignedTo,
 	})
 	if err != nil {
 		t.Fatalf("create task: %v", err)
 	}
 
 	// Marcar como done
-	_, err = svc.UpdateStatus(created.ID, task.StatusDone)
+	_, err = svc.UpdateStatus(created.ID, assignedTo, task.StatusDone)
 	if err != nil {
 		t.Fatalf("mark done: %v", err)
 	}
 
 	// Tentar reabrir → deve falhar
-	_, err = svc.UpdateStatus(created.ID, task.StatusTodo)
+	_, err = svc.UpdateStatus(created.ID, assignedTo, task.StatusTodo)
 	if err == nil {
 		t.Fatal("expected error reopening a done task, got nil")
 	}
@@ -106,10 +107,11 @@ func TestTaskService_UpdateStatus_AllowsNormalTransitions(t *testing.T) {
 	bus := events.New(10, log)
 	svc := task.NewService(newMockRepo(), bus)
 
+	assignedTo := uuid.New()
 	created, _ := svc.Create(task.CreateTaskDTO{
 		Title:      "Enviar proposta",
 		Priority:   task.PriorityMedium,
-		AssignedTo: uuid.New(),
+		AssignedTo: assignedTo,
 	})
 
 	transitions := []task.Status{
@@ -118,7 +120,7 @@ func TestTaskService_UpdateStatus_AllowsNormalTransitions(t *testing.T) {
 	}
 
 	for _, status := range transitions {
-		updated, err := svc.UpdateStatus(created.ID, status)
+		updated, err := svc.UpdateStatus(created.ID, assignedTo, status)
 		if err != nil {
 			t.Errorf("transition to %s failed: %v", status, err)
 		}

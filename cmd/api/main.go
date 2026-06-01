@@ -54,7 +54,7 @@ func main() {
 	}
 
 	app := fiber.New(fiber.Config{
-		AppName:      "GoRM CRM v0.9.0",
+		AppName:      "GoRM CRM " + version.Version,
 		ErrorHandler: sharederrors.Handler,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,

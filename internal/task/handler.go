@@ -61,11 +61,15 @@ func (h *Handler) List(c *fiber.Ctx) error {
 }
 
 func (h *Handler) GetByID(c *fiber.Ctx) error {
+	requesterID, err := ctxutil.OwnerID(c)
+	if err != nil {
+		return err
+	}
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid task id")
 	}
-	task, err := h.svc.GetByID(id)
+	task, err := h.svc.GetByID(id, requesterID)
 	if err != nil {
 		return err
 	}
@@ -73,6 +77,10 @@ func (h *Handler) GetByID(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Update(c *fiber.Ctx) error {
+	requesterID, err := ctxutil.OwnerID(c)
+	if err != nil {
+		return err
+	}
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid task id")
@@ -84,7 +92,7 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 	if result := validate.Check(dto); result != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(result)
 	}
-	task, err := h.svc.Update(id, dto)
+	task, err := h.svc.Update(id, requesterID, dto)
 	if err != nil {
 		return err
 	}
@@ -92,6 +100,10 @@ func (h *Handler) Update(c *fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateStatus(c *fiber.Ctx) error {
+	requesterID, err := ctxutil.OwnerID(c)
+	if err != nil {
+		return err
+	}
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid task id")
@@ -105,7 +117,7 @@ func (h *Handler) UpdateStatus(c *fiber.Ctx) error {
 	if result := validate.Check(body); result != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(result)
 	}
-	task, err := h.svc.UpdateStatus(id, body.Status)
+	task, err := h.svc.UpdateStatus(id, requesterID, body.Status)
 	if err != nil {
 		return err
 	}
@@ -121,11 +133,15 @@ func (h *Handler) Overdue(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Delete(c *fiber.Ctx) error {
+	requesterID, err := ctxutil.OwnerID(c)
+	if err != nil {
+		return err
+	}
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid task id")
 	}
-	if err := h.svc.Delete(id); err != nil {
+	if err := h.svc.Delete(id, requesterID); err != nil {
 		return err
 	}
 	return response.NoContent(c)

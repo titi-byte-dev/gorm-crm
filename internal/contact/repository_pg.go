@@ -3,22 +3,42 @@ package contact
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	sharederrors "github.com/titi-byte-dev/gorm-crm/internal/shared/errors"
 	"gorm.io/gorm"
 )
 
+var allowedSortColumns = map[string]bool{
+	"created_at": true,
+	"updated_at": true,
+	"name":       true,
+	"email":      true,
+	"company":    true,
+}
+
+func safeOrder(col, dir string) string {
+	if !allowedSortColumns[col] {
+		col = "created_at"
+	}
+	if strings.ToUpper(dir) == "ASC" {
+		return col + " ASC"
+	}
+	return col + " DESC"
+}
+
 // contactRecord é o modelo GORM — separado do domain model para não
 // vazar detalhes de persistência para o resto da aplicação.
 type contactRecord struct {
 	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
 	Name      string    `gorm:"not null"`
-	Email     string    `gorm:"uniqueIndex;not null"`
+	Email     string    `gorm:"not null;uniqueIndex:idx_contacts_email_owner"`
 	Phone     string
 	Company   string
 	Notes     string
-	OwnerID   uuid.UUID `gorm:"type:uuid;not null;index"`
+	OwnerID   uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_contacts_email_owner"`
 	CreatedAt int64     `gorm:"autoCreateTime:milli"`
 	UpdatedAt int64     `gorm:"autoUpdateTime:milli"`
 }
@@ -79,7 +99,7 @@ func (r *postgresRepository) FindAll(ownerID uuid.UUID, filters Filters) ([]*Con
 
 	var records []contactRecord
 	err := query.
-		Order(filters.SortBy + " " + filters.SortDir).
+		Order(safeOrder(filters.SortBy, filters.SortDir)).
 		Limit(filters.Limit).
 		Offset(filters.Offset()).
 		Find(&records).Error
@@ -130,13 +150,15 @@ func (r *postgresRepository) Delete(id uuid.UUID) error {
 
 func recordToContact(r contactRecord) *Contact {
 	return &Contact{
-		ID:      r.ID,
-		Name:    r.Name,
-		Email:   r.Email,
-		Phone:   r.Phone,
-		Company: r.Company,
-		Notes:   r.Notes,
-		OwnerID: r.OwnerID,
+		ID:        r.ID,
+		Name:      r.Name,
+		Email:     r.Email,
+		Phone:     r.Phone,
+		Company:   r.Company,
+		Notes:     r.Notes,
+		OwnerID:   r.OwnerID,
+		CreatedAt: time.UnixMilli(r.CreatedAt),
+		UpdatedAt: time.UnixMilli(r.UpdatedAt),
 	}
 }
 

@@ -33,9 +33,9 @@ type UpdateContactDTO struct {
 }
 
 func (s *Service) Create(ownerID uuid.UUID, dto CreateContactDTO) (*Contact, error) {
-	// Regra de negócio: email único por owner
+	// Regra de negócio: email único por owner (não global)
 	existing, err := s.repo.FindByEmail(dto.Email)
-	if err == nil && existing != nil {
+	if err == nil && existing != nil && existing.OwnerID == ownerID {
 		return nil, fmt.Errorf("email already exists: %w", sharederrors.ErrConflict)
 	}
 
@@ -62,10 +62,13 @@ func (s *Service) Create(ownerID uuid.UUID, dto CreateContactDTO) (*Contact, err
 	return saved, nil
 }
 
-func (s *Service) GetByID(id uuid.UUID) (*Contact, error) {
+func (s *Service) GetByID(id, ownerID uuid.UUID) (*Contact, error) {
 	contact, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("get contact: %w", err)
+	}
+	if contact.OwnerID != ownerID {
+		return nil, fmt.Errorf("contact %s: %w", id, sharederrors.ErrNotFound)
 	}
 	return contact, nil
 }
@@ -78,10 +81,13 @@ func (s *Service) List(ownerID uuid.UUID, filters Filters) ([]*Contact, int64, e
 	return contacts, total, nil
 }
 
-func (s *Service) Update(id uuid.UUID, dto UpdateContactDTO) (*Contact, error) {
+func (s *Service) Update(id, ownerID uuid.UUID, dto UpdateContactDTO) (*Contact, error) {
 	contact, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("update contact: %w", err)
+	}
+	if contact.OwnerID != ownerID {
+		return nil, fmt.Errorf("contact %s: %w", id, sharederrors.ErrNotFound)
 	}
 
 	applyUpdates(contact, dto)
@@ -117,7 +123,14 @@ func applyUpdates(c *Contact, dto UpdateContactDTO) {
 	}
 }
 
-func (s *Service) Delete(id uuid.UUID) error {
+func (s *Service) Delete(id, ownerID uuid.UUID) error {
+	contact, err := s.repo.FindByID(id)
+	if err != nil {
+		return fmt.Errorf("delete contact: %w", err)
+	}
+	if contact.OwnerID != ownerID {
+		return fmt.Errorf("contact %s: %w", id, sharederrors.ErrNotFound)
+	}
 	if err := s.repo.Delete(id); err != nil {
 		return fmt.Errorf("delete contact: %w", err)
 	}
@@ -125,6 +138,7 @@ func (s *Service) Delete(id uuid.UUID) error {
 	s.bus.Publish(events.Event{
 		Type:    events.ContactDeleted,
 		Payload: map[string]string{"id": id.String()},
+		UserID:  ownerID.String(),
 	})
 
 	return nil

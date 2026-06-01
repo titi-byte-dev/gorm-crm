@@ -41,18 +41,28 @@ func (s *Service) Create(ownerID uuid.UUID, dto CreateDealDTO) (*Deal, error) {
 	return saved, nil
 }
 
-func (s *Service) GetByID(id uuid.UUID) (*Deal, error) {
-	return s.repo.FindByID(id)
+func (s *Service) GetByID(id, ownerID uuid.UUID) (*Deal, error) {
+	deal, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if deal.OwnerID != ownerID {
+		return nil, fmt.Errorf("deal %s: %w", id, sharederrors.ErrNotFound)
+	}
+	return deal, nil
 }
 
 func (s *Service) List(ownerID uuid.UUID, filters Filters) ([]*Deal, int64, error) {
 	return s.repo.FindAll(ownerID, filters)
 }
 
-func (s *Service) MoveStage(id uuid.UUID, newStage Stage) (*Deal, error) {
+func (s *Service) MoveStage(id, ownerID uuid.UUID, newStage Stage) (*Deal, error) {
 	deal, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("move stage: %w", err)
+	}
+	if deal.OwnerID != ownerID {
+		return nil, fmt.Errorf("deal %s: %w", id, sharederrors.ErrNotFound)
 	}
 	if !deal.Stage.CanTransitionTo(newStage) {
 		return nil, fmt.Errorf("cannot move from %s to %s: %w",
@@ -81,6 +91,13 @@ func (s *Service) MoveStage(id uuid.UUID, newStage Stage) (*Deal, error) {
 	return updated, nil
 }
 
-func (s *Service) Delete(id uuid.UUID) error {
+func (s *Service) Delete(id, ownerID uuid.UUID) error {
+	deal, err := s.repo.FindByID(id)
+	if err != nil {
+		return fmt.Errorf("delete deal: %w", err)
+	}
+	if deal.OwnerID != ownerID {
+		return fmt.Errorf("deal %s: %w", id, sharederrors.ErrNotFound)
+	}
 	return s.repo.Delete(id)
 }

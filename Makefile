@@ -1,4 +1,6 @@
-.PHONY: run build test lint clean tidy help setup docker/build docker/up docker/down docker/logs docker/ps
+.PHONY: run build test lint clean tidy help setup \
+        docker/build docker/up docker/down docker/logs docker/ps \
+        migrate/up migrate/down migrate/status dev
 
 # Variáveis
 BINARY    = bin/gorm-crm
@@ -83,6 +85,37 @@ release: ## Cria e faz push de uma tag de release (uso: make release TAG=v1.0.0)
 	git tag -a $(TAG) -m "Release $(TAG)"
 	git push origin $(TAG)
 	@echo "✅ Tag $(TAG) criada e publicada — CD pipeline iniciado"
+
+migrate/up: ## Aplica todas as migrações pendentes (requer psql ou Docker)
+	docker run --rm --network host \
+	  -v $(PWD)/migrations:/migrations \
+	  migrate/migrate:v4.17.1 \
+	  -path=/migrations \
+	  -database "postgres://postgres:postgres@localhost:5432/gorm_crm?sslmode=disable" \
+	  up
+
+migrate/down: ## Reverte a última migração
+	docker run --rm --network host \
+	  -v $(PWD)/migrations:/migrations \
+	  migrate/migrate:v4.17.1 \
+	  -path=/migrations \
+	  -database "postgres://postgres:postgres@localhost:5432/gorm_crm?sslmode=disable" \
+	  down 1
+
+migrate/status: ## Mostra o estado actual das migrações
+	docker run --rm --network host \
+	  -v $(PWD)/migrations:/migrations \
+	  migrate/migrate:v4.17.1 \
+	  -path=/migrations \
+	  -database "postgres://postgres:postgres@localhost:5432/gorm_crm?sslmode=disable" \
+	  version
+
+dev: ## Inicia a stack completa: postgres + mongo + migrações + API
+	docker-compose up -d postgres mongo
+	@echo "⏳ A aguardar postgres ficar pronto..."
+	@until docker-compose exec postgres pg_isready -U postgres > /dev/null 2>&1; do sleep 1; done
+	$(MAKE) migrate/up
+	$(MAKE) run
 
 clean: ## Remove binários e ficheiros temporários
 	@rm -rf bin/ coverage.out coverage.html

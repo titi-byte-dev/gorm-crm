@@ -3,7 +3,7 @@
 # Imagem completa de Go apenas para compilar.
 # Esta imagem (~800MB) nunca chega a produção.
 # ─────────────────────────────────────────────
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Instala dependências de sistema necessárias para CGO
 # (o driver PostgreSQL pgx usa CGO para melhor performance)

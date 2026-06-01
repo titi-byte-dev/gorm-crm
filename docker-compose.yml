@@ -1,5 +1,20 @@
 services:
 
+  # ─── Migrações — corre uma vez antes da API arrancar ─────────────
+  migrate:
+    image: migrate/migrate:v4.17.1
+    container_name: gorm-crm-migrate
+    volumes:
+      - ./migrations:/migrations
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://postgres:postgres@postgres:5432/gorm_crm?sslmode=disable"
+      - "up"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
   # ─── Aplicação GoRM ───────────────────────────────────────────────
   api:
     build:
@@ -29,6 +44,8 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
